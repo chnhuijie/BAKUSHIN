@@ -37,13 +37,13 @@ def build_embed():
     
     embed.add_field(
         name="UMA Global",
-        value=f"n**Daily Server Reset:** <t:{global_reset}:f> (<t:{global_reset}:R>)\n**Tally Phase Starts:** <t:{global_tt}:f> (<t:{global_tt}:R>)",
+        value=f"**Daily Server Reset:** <t:{global_reset}:f> (<t:{global_reset}:R>)\n**Tally Phase Starts:** <t:{global_tt}:f> (<t:{global_tt}:R>)",
         inline=False
     )
     
     embed.add_field(
         name="UMA JP",
-        value=f"n**Daily Server Reset:** <t:{jp_reset}:f> (<t:{jp_reset}:R>)\n**Tally Phase Starts:** <t:{jp_tt}:f> (<t:{jp_tt}:R>)",
+        value=f"**Daily Server Reset:** <t:{jp_reset}:f> (<t:{jp_reset}:R>)\n**Tally Phase Starts:** <t:{jp_tt}:f> (<t:{jp_tt}:R>)",
         inline=False
     )
     
