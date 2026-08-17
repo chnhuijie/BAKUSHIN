@@ -30,22 +30,22 @@ def build_embed():
     jp_tt = get_next_timestamp(0, 0, JST, weekday=0) 
 
     embed = discord.Embed(
-        title="Official URA Track Registration Window",
-        description="Recruitment processing speeds and lane transfers require total timing precision!\nShow some spirit!",
+        title="Official URA Starting Gate!",
+        description="BAKUSHIN!",
         color=0xFF77AA # Bakushin Sakura Pink
     )
     
     embed.add_field(
         name="UMA Global",
-        value=f"**[ Gate Entry Window Open ]**\n**Daily Server Reset:** <t:{global_reset}:f> (<t:{global_reset}:R>)\n**Tally Phase Starts:** <t:{global_tt}:f> (<t:{global_tt}:R>)",
+        value=f"n**Daily Server Reset:** <t:{global_reset}:f> (<t:{global_reset}:R>)\n**Tally Phase Starts:** <t:{global_tt}:f> (<t:{global_tt}:R>)",
         inline=False
     )
     
     embed.add_field(
         name="UMA JP",
-        value=f"**[ Gate Entry Window Open ]**\n**Daily Server Reset:** <t:{jp_reset}:f> (<t:{jp_reset}:R>)\n**Tally Phase Starts:** <t:{jp_tt}:f> (<t:{jp_tt}:R>)",
+        value=f"n**Daily Server Reset:** <t:{jp_reset}:f> (<t:{jp_reset}:R>)\n**Tally Phase Starts:** <t:{jp_tt}:f> (<t:{jp_tt}:R>)",
         inline=False
     )
     
-    embed.set_footer(text="Public Morals Committee • Show some Guts and Spirit! Run with all your might!")
+    embed.set_footer(text="Class President • BAKUSHIN with all your might!")
     return embed
