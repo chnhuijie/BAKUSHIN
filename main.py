@@ -1,4 +1,6 @@
 import discord
+import os
+from dotenv import load_dotenv
 from discord.ext import commands
 
 class BakushinBot(commands.Bot):
@@ -17,5 +19,5 @@ class BakushinBot(commands.Bot):
 bot = BakushinBot()
 
 if __name__ == "__main__":
-    # Replace with your actual token or use environment variables
-    bot.run("YOUR_DISCORD_BOT_TOKEN_HERE")
+    load_dotenv() # This loads the token from a hidden .env file
+    bot.run(os.getenv("DISCORD_TOKEN"))
