@@ -1,10 +1,10 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-import random # Added to randomize quote types
+import random
 import config
 from utils import build_embed
-from quotes import get_quote # Import the quote function!
+from quotes import get_quote
 
 class BakushinCommands(commands.Cog):
     def __init__(self, bot):
@@ -22,9 +22,16 @@ class BakushinCommands(commands.Cog):
             return
 
         conf = config.load_config()
-        conf["channel_id"] = channel.id
-        conf["global_role_id"] = global_role.id
-        conf["jp_role_id"] = jp_role.id
+        
+        # We grab the unique ID of the server the command is run in
+        guild_id = str(interaction.guild.id)
+        
+        # Save the settings specifically under this server's ID
+        conf[guild_id] = {
+            "channel_id": channel.id,
+            "global_role_id": global_role.id,
+            "jp_role_id": jp_role.id
+        }
             
         config.save_config(conf)
         
@@ -37,16 +44,15 @@ class BakushinCommands(commands.Cog):
 
     @app_commands.command(name="dailies", description="Check the time left for Dailies and Team Trials")
     async def dailies(self, interaction: discord.Interaction):
-        # Randomly choose whether Bakushin yells about dailies or team trials
         quote_type = random.choice(["dailies", "tt"])
         bakushin_line = get_quote(quote_type)
 
-        # Added the quote as the 'content' of the message
         await interaction.response.send_message(
             content=bakushin_line,
             embed=build_embed(), 
-            allowed_mentions=discord.AllowedMentions.none() # Still safely prevents any accidental pings
+            allowed_mentions=discord.AllowedMentions.none()
         )
 
 async def setup(bot):
     await bot.add_cog(BakushinCommands(bot))
+    
