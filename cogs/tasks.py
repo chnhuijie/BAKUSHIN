@@ -21,26 +21,33 @@ class BakushinTasks(commands.Cog):
 
     async def send_reminder(self, region, quote_type, target_timestamp, title_context):
         conf = config.load_config()
-        
-        # Ensures reminders only send to the designated setup channel
-        if not conf.get("channel_id"): return
-        channel = self.bot.get_channel(conf["channel_id"])
-        if not channel: return
-
-        # Dynamically fetch the correct role based on the region
-        role_id = conf.get(f"{region}_role_id")
-        mentions = f"<@&{role_id}>" if role_id else ""
-        
         quote = get_quote(quote_type)
+        embed = build_embed()
         
-        message_content = f"{mentions}\n\n{quote}\n**Time left until {title_context}:** <t:{target_timestamp}:R>"
-        
-        # Strictly permits ONLY the exact designated role to be pinged
-        await channel.send(
-            content=message_content, 
-            embed=build_embed(),
-            allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False)
-        )
+        # Loop through every server saved in the config.json
+        for guild_id, settings in conf.items():
+            channel_id = settings.get("channel_id")
+            if not channel_id: continue
+            
+            channel = self.bot.get_channel(channel_id)
+            if not channel: continue
+
+            role_id = settings.get(f"{region}_role_id")
+            mentions = f"<@&{role_id}>" if role_id else ""
+            
+            message_content = f"{mentions}\n\n{quote}\n**Time left until {title_context}:** <t:{target_timestamp}:R>"
+            
+            try:
+                await channel.send(
+                    content=message_content, 
+                    embed=embed,
+                    allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False)
+                )
+            except discord.Forbidden:
+                # If the bot loses permission to post in a server, it safely skips them
+                pass
+            except Exception as e:
+                print(f"Failed to send to guild {guild_id}: {e}")
 
     # --- GLOBAL TASKS (UTC) ---
     @tasks.loop(time=datetime.time(hour=13, minute=0, tzinfo=UTC))
@@ -49,7 +56,7 @@ class BakushinTasks(commands.Cog):
 
     @tasks.loop(time=datetime.time(hour=9, minute=0, tzinfo=UTC))
     async def global_tt_task(self):
-        if datetime.datetime.now(UTC).weekday() == 0: # 0 = Monday
+        if datetime.datetime.now(UTC).weekday() == 0: 
             await self.send_reminder("global", "tt", get_next_timestamp(10, 0, UTC, weekday=0), "Global TT Tallying")
 
     # --- JP TASKS (JST) ---
@@ -59,7 +66,7 @@ class BakushinTasks(commands.Cog):
 
     @tasks.loop(time=datetime.time(hour=23, minute=0, tzinfo=JST))
     async def jp_tt_task(self):
-        if datetime.datetime.now(JST).weekday() == 6: # 6 = Sunday in JST
+        if datetime.datetime.now(JST).weekday() == 6: 
             await self.send_reminder("jp", "tt", get_next_timestamp(0, 0, JST, weekday=0), "JP TT Tallying")
 
     @global_dailies_task.before_loop
@@ -71,3 +78,4 @@ class BakushinTasks(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(BakushinTasks(bot))
+    
