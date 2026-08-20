@@ -284,7 +284,7 @@ class BakushinCommands(commands.Cog):
                         # SUCCESS CONFIRMATION:
                         await message.channel.send(f"**BAKUSHIN!** Embed successfully edited in {target_channel.mention}!")
                     else:
-                        await message.channel.send(f"**Error:** Could not find target channel `<{channel_id}>`.")
+                        raise ValueError("Target channel not found.")
 
                 # --- CREATE MODE ---
                 elif parts[0].isdigit():
@@ -299,19 +299,38 @@ class BakushinCommands(commands.Cog):
                         # SUCCESS CONFIRMATION:
                         await message.channel.send(f"**BAKUSHIN!** Embed successfully sent to {target_channel.mention}!")
                     else:
-                        await message.channel.send(f"**Error:** Could not find target channel `<{channel_id}>`.")
+                        raise ValueError("Target channel not found.")
                         
-            # --- VISUAL ERROR REPORTING ---
-            except discord.Forbidden:
-                await message.channel.send("**Error:** I don't have permission to post or edit in that target channel!")
-            except discord.NotFound:
-                await message.channel.send("**Error:** Could not find that Message ID. Make sure it exists in the target channel!")
-            except ValueError:
-                await message.channel.send("**Error:** Invalid ID format. Make sure there are no spaces or letters in the ID boxes.")
+            # --- ERROR LOGGING ROUTER ---
             except Exception as e:
-                await message.channel.send("**System Error:** Something went wrong while relaying the embed.")
-                print(f"Relay Error: {e}")
+                # 1. Figure out exactly what went wrong
+                if isinstance(e, discord.Forbidden):
+                    reason = "403 Forbidden: Missing permissions to send/edit in the Target Channel, or missing Manage Messages in the Relay Channel."
+                elif isinstance(e, discord.NotFound):
+                    reason = "404 Not Found: Could not find the Message ID to edit."
+                elif isinstance(e, ValueError):
+                    reason = "Invalid ID Format: Please check the Channel ID and Message ID boxes."
+                else:
+                    reason = str(e)
 
+                # 2. Build a clean error embed
+                log_text = (
+                    f"**Action:** `Webhook Embed Relay`\n"
+                    f"**Relay Room:** {message.channel.mention}\n"
+                    f"**Reason:** `{reason}`\n"
+                    f"[Jump to Webhook Message]({message.jump_url})"
+                )
+                
+                # 3. Send it to the secret developer log channel!
+                import config
+                conf = config.load_config()
+                log_channel_id = conf.get("global_log_channel")
+                
+                if log_channel_id:
+                    log_channel = self.bot.get_channel(log_channel_id)
+                    if log_channel:
+                        error_embed = discord.Embed(title="⚠️ Bakushin Relay Error", description=log_text, color=0xFF0000)
+                        await log_channel.send(embed=error_embed)
     @app_commands.command(name="test-reminder", description="Force the bot to send a test reminder immediately")
     @app_commands.default_permissions(administrator=True)
     @app_commands.describe(region="Which region to test (global or jp)", reminder_type="Which timer to test (dailies or tt)")
