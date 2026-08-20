@@ -329,8 +329,10 @@ class BakushinCommands(commands.Cog):
                 if log_channel_id:
                     log_channel = self.bot.get_channel(log_channel_id)
                     if log_channel:
-                        error_embed = discord.Embed(title="⚠️ Bakushin Relay Error", description=log_text, color=0xFF0000)
+                        error_embed = discord.Embed(title="Bakushin Relay Error", description=log_text, color=0xFF0000)
                         await log_channel.send(embed=error_embed)
+
+    
     @app_commands.command(name="test-reminder", description="Force the bot to send a test reminder immediately")
     @app_commands.default_permissions(administrator=True)
     @app_commands.describe(region="Which region to test (global or jp)", reminder_type="Which timer to test (dailies or tt)")
