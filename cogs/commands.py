@@ -12,6 +12,7 @@ class BakushinCommands(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="setup", description="Setup the channel and server-specific roles for Bakushin to ping")
+    @app_commands.default_permissions(administrator=True)
     @app_commands.describe(
         channel="The channel to send reminders in", 
         global_role="The role to ping for UMA Global reminders", 
@@ -52,6 +53,7 @@ class BakushinCommands(commands.Cog):
         )
 
     @app_commands.command(name="test-reminder", description="Force the bot to send a test reminder immediately")
+    @app_commands.default_permissions(administrator=True)
     @app_commands.describe(region="Which region to test (global or jp)", reminder_type="Which timer to test (dailies or tt)")
     @app_commands.choices(
         region=[app_commands.Choice(name="Global", value="global"), app_commands.Choice(name="JP", value="jp")],
