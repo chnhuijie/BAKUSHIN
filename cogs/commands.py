@@ -42,7 +42,7 @@ class EmbedBuilderModal(discord.ui.Modal, title='Bakushin Custom Embed Builder')
     async def on_submit(self, interaction: discord.Interaction):
         # SAFETY CHECK: Prevent Discord from crashing on a 100% empty embed
         if not self.embed_title.value and not self.embed_desc.value and not self.image_url.value:
-            await interaction.response.send_message("❌ You must provide at least a Title, Description, or Image!", ephemeral=True)
+            await interaction.response.send_message("You must provide at least a Title, Description, or Image!", ephemeral=True)
             return
 
         color_str = self.embed_color.value.replace("#", "") if self.embed_color.value else "FF77AA"
@@ -148,7 +148,7 @@ class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
     async def on_submit(self, interaction: discord.Interaction):
         # SAFETY CHECK
         if not self.embed_title.value and not self.embed_desc.value and not self.image_url.value:
-            await interaction.response.send_message("❌ You must provide at least a Title, Description, or Image!", ephemeral=True)
+            await interaction.response.send_message("You must provide at least a Title, Description, or Image!", ephemeral=True)
             return
 
         color_str = self.embed_color.value.replace("#", "") if self.embed_color.value else "FF77AA"
