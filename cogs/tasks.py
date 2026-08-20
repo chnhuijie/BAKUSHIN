@@ -19,7 +19,7 @@ class BakushinTasks(commands.Cog):
         self.global_tt_task.cancel()
         self.jp_tt_task.cancel()
 
-async def send_reminder(self, region, quote_type, target_timestamp, title_context):
+    async def send_reminder(self, region, quote_type, target_timestamp, title_context):
         conf = config.load_config()
         quote = get_quote(quote_type)
         embed = build_embed()
@@ -87,4 +87,3 @@ async def send_reminder(self, region, quote_type, target_timestamp, title_contex
 
 async def setup(bot):
     await bot.add_cog(BakushinTasks(bot))
-    
