@@ -280,6 +280,11 @@ class BakushinCommands(commands.Cog):
                         # Tell Bakushin to edit her existing message with the new embed!
                         await target_message.edit(embed=message.embeds[0])
                         await message.delete() # Clean up the hidden relay message
+                        
+                        # SUCCESS CONFIRMATION:
+                        await message.channel.send(f"**BAKUSHIN!** Embed successfully edited in {target_channel.mention}!")
+                    else:
+                        await message.channel.send(f"**Error:** Could not find target channel `<{channel_id}>`.")
 
                 # --- CREATE MODE ---
                 elif parts[0].isdigit():
@@ -291,13 +296,20 @@ class BakushinCommands(commands.Cog):
                         await target_channel.send(embed=message.embeds[0])
                         await message.delete() # Clean up the hidden relay message
                         
+                        # SUCCESS CONFIRMATION:
+                        await message.channel.send(f"**BAKUSHIN!** Embed successfully sent to {target_channel.mention}!")
+                    else:
+                        await message.channel.send(f"**Error:** Could not find target channel `<{channel_id}>`.")
+                        
+            # --- VISUAL ERROR REPORTING ---
             except discord.Forbidden:
-                print(f"Relay Error: Bakushin lacks permissions in that channel!")
+                await message.channel.send("**Error:** I don't have permission to post or edit in that target channel!")
             except discord.NotFound:
-                print(f"Relay Error: Could not find the message ID to edit!")
+                await message.channel.send("**Error:** Could not find that Message ID. Make sure it exists in the target channel!")
             except ValueError:
-                print(f"Relay Error: Invalid ID format sent from website!")
+                await message.channel.send("**Error:** Invalid ID format. Make sure there are no spaces or letters in the ID boxes.")
             except Exception as e:
+                await message.channel.send("**System Error:** Something went wrong while relaying the embed.")
                 print(f"Relay Error: {e}")
 
     @app_commands.command(name="test-reminder", description="Force the bot to send a test reminder immediately")
@@ -423,7 +435,7 @@ async def setup(bot):
         # 4. Politely tell the user something went wrong
         if not interaction.response.is_done():
             try:
-                await interaction.response.send_message("❌ Oops! A system error occurred. The Class President is looking into it!", ephemeral=True)
+                await interaction.response.send_message("Oops! A system error occurred. The Class President is looking into it!", ephemeral=True)
             except:
                 pass
 
@@ -433,7 +445,7 @@ async def setup(bot):
         if log_channel_id:
             channel = bot.get_channel(log_channel_id)
             if channel:
-                embed = discord.Embed(title="⚠️ Bakushin System Error", description=log_text, color=0xFF0000)
+                embed = discord.Embed(title="Bakushin System Error", description=log_text, color=0xFF0000)
                 await channel.send(embed=embed)
                 
         # Always print to the SSH console as a backup!
