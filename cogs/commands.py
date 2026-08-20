@@ -60,7 +60,7 @@ class BakushinCommands(commands.Cog):
         reminder_type=[app_commands.Choice(name="Dailies", value="dailies"), app_commands.Choice(name="Team Trials", value="tt")]
     )
     async def test_reminder(self, interaction: discord.Interaction, region: str, reminder_type: str):
-        if not interaction.user.guild_permissions.administrator:
+        if not interaction.permissions.administrator:
             await interaction.response.send_message("Only the Class President can trigger tests!", ephemeral=True)
             return
 
