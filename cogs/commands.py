@@ -64,6 +64,46 @@ class EmbedBuilderModal(discord.ui.Modal, title='Bakushin Custom Embed Builder')
         # Silently confirm to the admin that it worked
         await interaction.response.send_message("BAKUSHIN! Custom embed successfully posted!", ephemeral=True)
 
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        import traceback
+        
+        # 1. Extract the file and exact line number
+        line_num = "Unknown"
+        file_name = "Unknown"
+        if error.__traceback__:
+            tb = traceback.extract_tb(error.__traceback__)
+            if tb:
+                last_call = tb[-1]
+                line_num = last_call.lineno
+                file_name = last_call.filename.split('/')[-1]
+
+        # 2. Format specific reasons
+        if isinstance(error, discord.errors.Forbidden):
+            reason = "403 / No Perms (Missing Permissions to Embed Links!)"
+        else:
+            reason = str(error)
+
+        # 3. Build the error text
+        log_text = (
+            f"**Action:** `Modal Submit (Embed Builder)`\n"
+            f"**File:** `{file_name}`\n"
+            f"**Error Line:** `{line_num}`\n"
+            f"**Reason:** `{reason}`"
+        )
+
+        # 4. Politely tell the user in the modal
+        if not interaction.response.is_done():
+            await interaction.response.send_message("Oops! A system error occurred. The Class President is looking into it!", ephemeral=True)
+
+        # 5. Send to your secret dev channel
+        conf = config.load_config()
+        log_channel_id = conf.get("global_log_channel")
+        if log_channel_id:
+            channel = interaction.client.get_channel(log_channel_id)
+            if channel:
+                embed = discord.Embed(title="Bakushin Modal Error", description=log_text, color=0xFF0000)
+                await channel.send(embed=embed)
+
 # --- NEW: CUSTOM EMBED EDITOR MODAL ---
 class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
     def __init__(self, message: discord.Message):
@@ -126,6 +166,46 @@ class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
         # Edit the existing message instead of sending a new one!
         await self.message.edit(embed=new_embed)
         await interaction.response.send_message("BAKUSHIN! The embed has been successfully updated!", ephemeral=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        import traceback
+        
+        # 1. Extract the file and exact line number
+        line_num = "Unknown"
+        file_name = "Unknown"
+        if error.__traceback__:
+            tb = traceback.extract_tb(error.__traceback__)
+            if tb:
+                last_call = tb[-1]
+                line_num = last_call.lineno
+                file_name = last_call.filename.split('/')[-1]
+
+        # 2. Format specific reasons
+        if isinstance(error, discord.errors.Forbidden):
+            reason = "403 / No Perms (Missing Permissions to Embed Links!)"
+        else:
+            reason = str(error)
+
+        # 3. Build the error text
+        log_text = (
+            f"**Action:** `Modal Submit (Embed Editor)`\n"
+            f"**File:** `{file_name}`\n"
+            f"**Error Line:** `{line_num}`\n"
+            f"**Reason:** `{reason}`"
+        )
+
+        # 4. Politely tell the user in the modal
+        if not interaction.response.is_done():
+            await interaction.response.send_message("Oops! A system error occurred. The Class President is looking into it!", ephemeral=True)
+
+        # 5. Send to your secret dev channel
+        conf = config.load_config()
+        log_channel_id = conf.get("global_log_channel")
+        if log_channel_id:
+            channel = interaction.client.get_channel(log_channel_id)
+            if channel:
+                embed = discord.Embed(title="Bakushin Modal Error", description=log_text, color=0xFF0000)
+                await channel.send(embed=embed)
         
 # --- EXISTING COMMANDS ---
 class BakushinCommands(commands.Cog):
