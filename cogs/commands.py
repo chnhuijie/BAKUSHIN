@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 import random
 import config
+import datetime
 from utils import build_embed
 from quotes import get_quote
 
@@ -17,16 +18,13 @@ class BakushinCommands(commands.Cog):
         jp_role="The role to ping for UMA JP reminders"
     )
     async def setup(self, interaction: discord.Interaction, channel: discord.TextChannel, global_role: discord.Role, jp_role: discord.Role):
-        if not interaction.user.guild_permissions.administrator:
+        if not interaction.permissions.administrator:
             await interaction.response.send_message("Only the Class President (Admins) can use this!", ephemeral=True)
             return
 
         conf = config.load_config()
+        guild_id = str(interaction.guild_id)
         
-        # We grab the unique ID of the server the command is run in
-        guild_id = str(interaction.guild.id)
-        
-        # Save the settings specifically under this server's ID
         conf[guild_id] = {
             "channel_id": channel.id,
             "global_role_id": global_role.id,
@@ -52,7 +50,7 @@ class BakushinCommands(commands.Cog):
             embed=build_embed(), 
             allowed_mentions=discord.AllowedMentions.none()
         )
-        
+
     @app_commands.command(name="test-reminder", description="Force the bot to send a test reminder immediately")
     @app_commands.describe(region="Which region to test (global or jp)", reminder_type="Which timer to test (dailies or tt)")
     @app_commands.choices(
@@ -64,14 +62,27 @@ class BakushinCommands(commands.Cog):
             await interaction.response.send_message("Only the Class President can trigger tests!", ephemeral=True)
             return
 
-        # Acknowledge the command so it doesn't time out
-        await interaction.response.send_message(f"Testing the **{region.upper()} {reminder_type.title()}** reminder now...", ephemeral=True)
+        # Defer immediately to prevent Discord's 3-second timeout crash!
+        await interaction.response.defer(ephemeral=True)
         
-        # We manually fetch the tasks cog and force it to run the reminder function
         tasks_cog = self.bot.get_cog("BakushinTasks")
         if tasks_cog:
-            # We pass a fake timestamp (0) just for the visual test
-            await tasks_cog.send_reminder(region, reminder_type, 0, f"TESTING {region.upper()} {reminder_type.upper()}")
+            # Create a fake timestamp exactly 1 hour (3600 seconds) from right now
+            fake_future_time = int(datetime.datetime.now(datetime.timezone.utc).timestamp()) + 3600
+            
+            # Pass interaction.guild_id so it ONLY tests in the current server!
+            await tasks_cog.send_reminder(
+                region, 
+                reminder_type, 
+                fake_future_time, 
+                f"TESTING {region.upper()} {reminder_type.upper()}",
+                target_guild_id=interaction.guild_id
+            )
+            
+            # Use followup.send() because we used defer() earlier
+            await interaction.followup.send(f"Testing the **{region.upper()} {reminder_type.title()}** reminder now in this server only!", ephemeral=True)
+        else:
+            await interaction.followup.send("Error: Could not find the background tasks!", ephemeral=True)
+
 async def setup(bot):
     await bot.add_cog(BakushinCommands(bot))
-    
