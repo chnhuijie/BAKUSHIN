@@ -256,6 +256,50 @@ class BakushinCommands(commands.Cog):
             allowed_mentions=discord.AllowedMentions.none()
         )
 
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        # 1. Ignore normal users and other bots. ONLY listen to webhooks!
+        if not message.webhook_id:
+            return
+            
+        # 2. Check if there are text instructions AND an embed attached
+        if message.content and message.embeds:
+            try:
+                # Split the text into parts (e.g., ["EDIT", "12345", "67890"])
+                parts = message.content.split()
+                
+                # --- EDIT MODE ---
+                if parts[0] == "EDIT" and len(parts) == 3:
+                    channel_id = int(parts[1])
+                    message_id = int(parts[2])
+                    
+                    target_channel = self.bot.get_channel(channel_id)
+                    if target_channel:
+                        target_message = await target_channel.fetch_message(message_id)
+                        
+                        # Tell Bakushin to edit her existing message with the new embed!
+                        await target_message.edit(embed=message.embeds[0])
+                        await message.delete() # Clean up the hidden relay message
+
+                # --- CREATE MODE ---
+                elif parts[0].isdigit():
+                    channel_id = int(parts[0])
+                    
+                    target_channel = self.bot.get_channel(channel_id)
+                    if target_channel:
+                        # Tell Bakushin to send a brand new message!
+                        await target_channel.send(embed=message.embeds[0])
+                        await message.delete() # Clean up the hidden relay message
+                        
+            except discord.Forbidden:
+                print(f"Relay Error: Bakushin lacks permissions in that channel!")
+            except discord.NotFound:
+                print(f"Relay Error: Could not find the message ID to edit!")
+            except ValueError:
+                print(f"Relay Error: Invalid ID format sent from website!")
+            except Exception as e:
+                print(f"Relay Error: {e}")
+
     @app_commands.command(name="test-reminder", description="Force the bot to send a test reminder immediately")
     @app_commands.default_permissions(administrator=True)
     @app_commands.describe(region="Which region to test (global or jp)", reminder_type="Which timer to test (dailies or tt)")
