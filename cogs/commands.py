@@ -63,7 +63,69 @@ class EmbedBuilderModal(discord.ui.Modal, title='Bakushin Custom Embed Builder')
         # Silently confirm to the admin that it worked
         await interaction.response.send_message("BAKUSHIN! Custom embed successfully posted!", ephemeral=True)
 
+# --- NEW: CUSTOM EMBED EDITOR MODAL ---
+class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
+    def __init__(self, message: discord.Message):
+        super().__init__()
+        self.message = message
+        # Grab the first embed from the message to pre-fill our text boxes
+        embed = message.embeds[0] if message.embeds else None
+        
+        self.embed_title = discord.ui.TextInput(
+            label='Embed Title',
+            style=discord.TextStyle.short,
+            default=embed.title if embed and embed.title else '',
+            required=True
+        )
+        self.add_item(self.embed_title)
 
+        self.embed_desc = discord.ui.TextInput(
+            label='Description',
+            style=discord.TextStyle.paragraph,
+            default=embed.description if embed and embed.description else '',
+            required=True,
+            max_length=4000
+        )
+        self.add_item(self.embed_desc)
+
+        self.image_url = discord.ui.TextInput(
+            label='Image URL (Optional)',
+            style=discord.TextStyle.short,
+            default=embed.image.url if embed and embed.image else '',
+            required=False
+        )
+        self.add_item(self.image_url)
+
+        # Convert the bot's internal color code back to a standard Hex code
+        hex_color = hex(embed.color.value).replace('0x', '').upper() if embed and embed.color else 'FF77AA'
+        self.embed_color = discord.ui.TextInput(
+            label='Hex Color (Optional)',
+            style=discord.TextStyle.short,
+            default=hex_color,
+            required=False
+        )
+        self.add_item(self.embed_color)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        color_str = self.embed_color.value.replace("#", "") if self.embed_color.value else "FF77AA"
+        try:
+            color_val = int(color_str, 16)
+        except ValueError:
+            color_val = 0xFF77AA
+
+        new_embed = discord.Embed(
+            title=self.embed_title.value,
+            description=self.embed_desc.value,
+            color=color_val
+        )
+
+        if self.image_url.value:
+            new_embed.set_image(url=self.image_url.value)
+
+        # Edit the existing message instead of sending a new one!
+        await self.message.edit(embed=new_embed)
+        await interaction.response.send_message("BAKUSHIN! The embed has been successfully updated!", ephemeral=True)
+        
 # --- EXISTING COMMANDS ---
 class BakushinCommands(commands.Cog):
     def __init__(self, bot):
