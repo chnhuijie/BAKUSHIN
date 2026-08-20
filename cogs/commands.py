@@ -1,4 +1,5 @@
 import discord
+import traceback
 from discord import app_commands
 from discord.ext import commands
 import random
@@ -244,5 +245,72 @@ class BakushinCommands(commands.Cog):
         # Pop open the new editor modal!
         await interaction.response.send_modal(EmbedEditModal(message))
 
+    @app_commands.command(name="set-error-logs", description="Set the private channel where Bakushin will report code errors")
+    @app_commands.default_permissions(administrator=True)
+    async def set_error_logs(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        if not interaction.permissions.administrator:
+            return
+            
+        conf = config.load_config()
+        # We save this globally so it applies everywhere
+        conf["global_log_channel"] = channel.id
+        config.save_config(conf)
+        
+        await interaction.response.send_message(f"BAKUSHIN! System errors will now be logged in {channel.mention}!", ephemeral=True)
+
 async def setup(bot):
     await bot.add_cog(BakushinCommands(bot))
+    
+    # --- GLOBAL ERROR HANDLER ---
+    async def on_tree_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+        # Unwrap the error to get to the real cause
+        original_error = getattr(error, 'original', error)
+        
+        # 1. Extract the file and exact line number
+        line_num = "Unknown"
+        file_name = "Unknown"
+        if original_error.__traceback__:
+            tb = traceback.extract_tb(original_error.__traceback__)
+            if tb:
+                last_call = tb[-1] # Grabs the final line before the crash
+                line_num = last_call.lineno
+                file_name = last_call.filename.split('/')[-1] # Hides your server folder path
+
+        # 2. Format specific reasons (like 403 or 404)
+        if isinstance(original_error, discord.errors.Forbidden):
+            reason = "403 / No Perms (Missing Permissions)"
+        elif isinstance(original_error, discord.errors.NotFound):
+            reason = "404 / Not Found (Message Deleted or Interaction Timed Out)"
+        else:
+            reason = str(original_error) # Fallback for syntax errors, missing variables, etc.
+
+        # 3. Build the error text
+        cmd_name = interaction.command.name if interaction.command else 'Unknown'
+        log_text = (
+            f"**Command:** `/{cmd_name}`\n"
+            f"**File:** `{file_name}`\n"
+            f"**Error Line:** `{line_num}`\n"
+            f"**Reason:** `{reason}`"
+        )
+
+        # 4. Politely tell the user something went wrong
+        if not interaction.response.is_done():
+            try:
+                await interaction.response.send_message("❌ Oops! A system error occurred. The Class President is looking into it!", ephemeral=True)
+            except:
+                pass
+
+        # 5. Send the detailed log to your secret developer channel
+        conf = config.load_config()
+        log_channel_id = conf.get("global_log_channel")
+        if log_channel_id:
+            channel = bot.get_channel(log_channel_id)
+            if channel:
+                embed = discord.Embed(title="⚠️ Bakushin System Error", description=log_text, color=0xFF0000)
+                await channel.send(embed=embed)
+                
+        # Always print to the SSH console as a backup!
+        print(f"Error in /{cmd_name}: {original_error}")
+
+    # Attach our custom handler to the bot's command tree
+    bot.tree.on_error = on_tree_error
