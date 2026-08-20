@@ -7,6 +7,64 @@ import datetime
 from utils import build_embed
 from quotes import get_quote
 
+# --- NEW: CUSTOM EMBED BUILDER MODAL ---
+class EmbedBuilderModal(discord.ui.Modal, title='Bakushin Custom Embed Builder'):
+    embed_title = discord.ui.TextInput(
+        label='Embed Title',
+        style=discord.TextStyle.short,
+        placeholder='e.g., Uma Club Roles',
+        required=True
+    )
+
+    embed_desc = discord.ui.TextInput(
+        label='Description (Supports Emojis & Roles)',
+        style=discord.TextStyle.paragraph,
+        placeholder='Use <@&ROLE_ID> for roles and <:name:ID> for custom emojis!',
+        required=True,
+        max_length=4000
+    )
+
+    image_url = discord.ui.TextInput(
+        label='Image URL (Optional)',
+        style=discord.TextStyle.short,
+        placeholder='https://example.com/image.png',
+        required=False
+    )
+
+    embed_color = discord.ui.TextInput(
+        label='Hex Color (Optional)',
+        style=discord.TextStyle.short,
+        default='FF77AA',
+        required=False
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Convert the hex color string into a format Discord understands
+        color_str = self.embed_color.value.replace("#", "") if self.embed_color.value else "FF77AA"
+        try:
+            color_val = int(color_str, 16)
+        except ValueError:
+            color_val = 0xFF77AA # Fallback to Bakushin Pink if the user types an invalid color
+
+        # Build the embed
+        embed = discord.Embed(
+            title=self.embed_title.value,
+            description=self.embed_desc.value,
+            color=color_val
+        )
+
+        # Attach the image if a URL was provided
+        if self.image_url.value:
+            embed.set_image(url=self.image_url.value)
+
+        # Send the embed to the exact channel the command was used in
+        await interaction.channel.send(embed=embed)
+        
+        # Silently confirm to the admin that it worked
+        await interaction.response.send_message("BAKUSHIN! Custom embed successfully posted!", ephemeral=True)
+
+
+# --- EXISTING COMMANDS ---
 class BakushinCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -64,15 +122,12 @@ class BakushinCommands(commands.Cog):
             await interaction.response.send_message("Only the Class President can trigger tests!", ephemeral=True)
             return
 
-        # Defer immediately to prevent Discord's 3-second timeout crash!
         await interaction.response.defer(ephemeral=True)
         
         tasks_cog = self.bot.get_cog("BakushinTasks")
         if tasks_cog:
-            # Create a fake timestamp exactly 1 hour (3600 seconds) from right now
             fake_future_time = int(datetime.datetime.now(datetime.timezone.utc).timestamp()) + 3600
             
-            # Pass interaction.guild_id so it ONLY tests in the current server!
             await tasks_cog.send_reminder(
                 region, 
                 reminder_type, 
@@ -81,10 +136,20 @@ class BakushinCommands(commands.Cog):
                 target_guild_id=interaction.guild_id
             )
             
-            # Use followup.send() because we used defer() earlier
             await interaction.followup.send(f"Testing the **{region.upper()} {reminder_type.title()}** reminder now in this server only!", ephemeral=True)
         else:
             await interaction.followup.send("Error: Could not find the background tasks!", ephemeral=True)
+
+    # --- NEW SLASH COMMAND FOR THE BUILDER ---
+    @app_commands.command(name="create-embed", description="Design and send a custom embed into the current channel")
+    @app_commands.default_permissions(administrator=True)
+    async def create_embed(self, interaction: discord.Interaction):
+        if not interaction.permissions.administrator:
+            await interaction.response.send_message("Only the Class President can make official announcements!", ephemeral=True)
+            return
+            
+        # This tells Discord to pop open our modal window!
+        await interaction.response.send_modal(EmbedBuilderModal())
 
 async def setup(bot):
     await bot.add_cog(BakushinCommands(bot))
