@@ -19,13 +19,17 @@ class BakushinTasks(commands.Cog):
         self.global_tt_task.cancel()
         self.jp_tt_task.cancel()
 
-    async def send_reminder(self, region, quote_type, target_timestamp, title_context):
+    async def send_reminder(self, region, quote_type, target_timestamp, title_context, target_guild_id=None):
         conf = config.load_config()
         quote = get_quote(quote_type)
         embed = build_embed()
         
         # Loop through every server saved in the config.json
         for guild_id, settings in conf.items():
+            # If a specific server is targeted (like during a test), skip all others!
+            if target_guild_id and str(guild_id) != str(target_guild_id):
+                continue
+
             # SAFETY CHECK: Ignore old format data so it doesn't crash!
             if not isinstance(settings, dict):
                 continue
