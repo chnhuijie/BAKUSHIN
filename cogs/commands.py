@@ -52,7 +52,26 @@ class BakushinCommands(commands.Cog):
             embed=build_embed(), 
             allowed_mentions=discord.AllowedMentions.none()
         )
+        
+    @app_commands.command(name="test-reminder", description="Force the bot to send a test reminder immediately")
+    @app_commands.describe(region="Which region to test (global or jp)", reminder_type="Which timer to test (dailies or tt)")
+    @app_commands.choices(
+        region=[app_commands.Choice(name="Global", value="global"), app_commands.Choice(name="JP", value="jp")],
+        reminder_type=[app_commands.Choice(name="Dailies", value="dailies"), app_commands.Choice(name="Team Trials", value="tt")]
+    )
+    async def test_reminder(self, interaction: discord.Interaction, region: str, reminder_type: str):
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("Only the Class President can trigger tests!", ephemeral=True)
+            return
 
+        # Acknowledge the command so it doesn't time out
+        await interaction.response.send_message(f"Testing the **{region.upper()} {reminder_type.title()}** reminder now...", ephemeral=True)
+        
+        # We manually fetch the tasks cog and force it to run the reminder function
+        tasks_cog = self.bot.get_cog("BakushinTasks")
+        if tasks_cog:
+            # We pass a fake timestamp (0) just for the visual test
+            await tasks_cog.send_reminder(region, reminder_type, 0, f"TESTING {region.upper()} {reminder_type.upper()}")
 async def setup(bot):
     await bot.add_cog(BakushinCommands(bot))
     
