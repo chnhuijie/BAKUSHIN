@@ -212,6 +212,37 @@ class BakushinCommands(commands.Cog):
             
         # This tells Discord to pop open our modal window!
         await interaction.response.send_modal(EmbedBuilderModal())
+        
+    # --- NEW SLASH COMMAND FOR EDITING ---
+    @app_commands.command(name="edit-embed", description="Edit an existing Bakushin custom embed")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(message_id="The ID of the message you want to edit")
+    async def edit_embed(self, interaction: discord.Interaction, message_id: str):
+        if not interaction.permissions.administrator:
+            await interaction.response.send_message("Only the Class President can edit official announcements!", ephemeral=True)
+            return
+            
+        try:
+            # Try to find the message in the channel where you typed the command
+            message = await interaction.channel.fetch_message(int(message_id))
+        except discord.NotFound:
+            await interaction.response.send_message("I couldn't find a message with that ID in this channel!", ephemeral=True)
+            return
+        except ValueError:
+            await interaction.response.send_message("That doesn't look like a valid message ID! Please use the long number.", ephemeral=True)
+            return
+
+        # Safety checks so you don't accidentally try to edit a player's message
+        if message.author != self.bot.user:
+            await interaction.response.send_message("I can only edit my own messages!", ephemeral=True)
+            return
+            
+        if not message.embeds:
+            await interaction.response.send_message("That message doesn't have an embed to edit!", ephemeral=True)
+            return
+
+        # Pop open the new editor modal!
+        await interaction.response.send_modal(EmbedEditModal(message))
 
 async def setup(bot):
     await bot.add_cog(BakushinCommands(bot))
