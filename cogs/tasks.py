@@ -24,20 +24,16 @@ class BakushinTasks(commands.Cog):
         quote = get_quote(quote_type)
         embed = build_embed()
         
-        # Loop through every server saved in the config.json
         for guild_id, settings in conf.items():
-            # If a specific server is targeted (like during a test), skip all others!
             if target_guild_id and str(guild_id) != str(target_guild_id):
                 continue
 
-            # SAFETY CHECK: Ignore old format data so it doesn't crash!
             if not isinstance(settings, dict):
                 continue
                 
             channel_id = settings.get("channel_id")
             if not channel_id: continue
             
-            # Use fetch_channel as a fallback if the channel isn't in memory yet
             channel = self.bot.get_channel(channel_id)
             if not channel:
                 try:
@@ -45,10 +41,19 @@ class BakushinTasks(commands.Cog):
                 except:
                     continue
 
+            # --- UPDATED PING LOGIC ---
+            # We fetch the role ID, but only convert it into an @ping if it's for Team Trials ("tt")
             role_id = settings.get(f"{region}_role_id")
-            mentions = f"<@&{role_id}>" if role_id else ""
+            if role_id and quote_type == "tt":
+                mentions = f"<@&{role_id}>"
+            else:
+                mentions = ""
             
-            message_content = f"{mentions}\n\n{quote}\n**Time left until {title_context}:** <t:{target_timestamp}:R>"
+            # If there are no mentions, we remove the extra blank lines at the top so it looks clean!
+            if mentions:
+                message_content = f"{mentions}\n\n{quote}\n**Time left until {title_context}:** <t:{target_timestamp}:R>"
+            else:
+                message_content = f"{quote}\n**Time left until {title_context}:** <t:{target_timestamp}:R>"
             
             try:
                 await channel.send(
@@ -59,7 +64,6 @@ class BakushinTasks(commands.Cog):
             except discord.Forbidden:
                 pass
             except Exception as e:
-                # This ensures any hidden errors are printed to your SSH console!
                 print(f"Failed to send to guild {guild_id}: {e}")
 
     # --- GLOBAL TASKS (UTC) ---
