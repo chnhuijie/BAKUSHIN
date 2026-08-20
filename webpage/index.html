@@ -22,6 +22,34 @@
       max-width: 1200px;
     }
 
+    /* --- HEADER STYLING --- */
+    .site-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 25px;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid white; /* Adds a nice clean line under the header */
+    }
+
+    .header-mascot {
+      width: 120px; /* Adjust her size here */
+      height: auto;
+    }
+
+    .header-title h1 {
+      margin: 0 0 5px 0;
+      font-size: 32px;
+      letter-spacing: 1px;
+    }
+
+    .header-title p {
+      margin: 0;
+      font-size: 16px;
+      color: #ffd1e3; /* Lighter pink for the sub-text */
+    }
+
     /* --- TOP BAR (ROUTING) --- */
     .top-bar {
       display: flex;
@@ -142,6 +170,16 @@
 <body>
 
   <div class="container">
+    
+    <!-- NEW HEADER BLOCK -->
+    <div class="site-header">
+      <img src="BakushinO.png" alt="Bakushin Mascot" class="header-mascot">
+      <div class="header-title">
+        <h1>Class President's Embed Builder</h1>
+        <p>UMA Club Announcements & Role Management</p>
+      </div>
+    </div>
+
     <!-- Top Bar: Webhook & IDs -->
     <div class="top-bar">
       <input type="password" id="webhookInput" placeholder="Enter Webhook here">
