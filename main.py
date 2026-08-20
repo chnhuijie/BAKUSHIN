@@ -5,7 +5,11 @@ from discord.ext import commands
 
 class BakushinBot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix="!", intents=discord.Intents.default())
+        # --- NEW INTENTS SETUP ---
+        intents = discord.Intents.default()
+        intents.message_content = True # Taking off the blindfold!
+        
+        super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
         # Load our separated code modules (Cogs)
