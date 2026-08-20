@@ -14,14 +14,14 @@ class EmbedBuilderModal(discord.ui.Modal, title='Bakushin Custom Embed Builder')
         label='Embed Title',
         style=discord.TextStyle.short,
         placeholder='e.g., Uma Club Roles',
-        required=True
+        required=False # CHANGED TO FALSE
     )
 
     embed_desc = discord.ui.TextInput(
         label='Description (Supports Emojis & Roles)',
         style=discord.TextStyle.paragraph,
         placeholder='Use <@&ROLE_ID> for roles and <:name:ID> for custom emojis!',
-        required=True,
+        required=False, # CHANGED TO FALSE
         max_length=4000
     )
 
@@ -40,30 +40,30 @@ class EmbedBuilderModal(discord.ui.Modal, title='Bakushin Custom Embed Builder')
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Convert the hex color string into a format Discord understands
+        # SAFETY CHECK: Prevent Discord from crashing on a 100% empty embed
+        if not self.embed_title.value and not self.embed_desc.value and not self.image_url.value:
+            await interaction.response.send_message("❌ You must provide at least a Title, Description, or Image!", ephemeral=True)
+            return
+
         color_str = self.embed_color.value.replace("#", "") if self.embed_color.value else "FF77AA"
         try:
             color_val = int(color_str, 16)
         except ValueError:
-            color_val = 0xFF77AA # Fallback to Bakushin Pink if the user types an invalid color
+            color_val = 0xFF77AA 
 
-        # Build the embed
+        # Build the embed (passing None if the user left the box blank)
         embed = discord.Embed(
-            title=self.embed_title.value,
-            description=self.embed_desc.value,
+            title=self.embed_title.value if self.embed_title.value else None,
+            description=self.embed_desc.value if self.embed_desc.value else None,
             color=color_val
         )
 
-        # Attach the image if a URL was provided
         if self.image_url.value:
             embed.set_image(url=self.image_url.value)
 
-        # Send the embed to the exact channel the command was used in
         await interaction.channel.send(embed=embed)
-        
-        # Silently confirm to the admin that it worked
         await interaction.response.send_message("BAKUSHIN! Custom embed successfully posted!", ephemeral=True)
-
+        
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         import traceback
         
@@ -109,14 +109,13 @@ class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
     def __init__(self, message: discord.Message):
         super().__init__()
         self.message = message
-        # Grab the first embed from the message to pre-fill our text boxes
         embed = message.embeds[0] if message.embeds else None
         
         self.embed_title = discord.ui.TextInput(
             label='Embed Title',
             style=discord.TextStyle.short,
             default=embed.title if embed and embed.title else '',
-            required=True
+            required=False # CHANGED TO FALSE
         )
         self.add_item(self.embed_title)
 
@@ -124,7 +123,7 @@ class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
             label='Description',
             style=discord.TextStyle.paragraph,
             default=embed.description if embed and embed.description else '',
-            required=True,
+            required=False, # CHANGED TO FALSE
             max_length=4000
         )
         self.add_item(self.embed_desc)
@@ -137,7 +136,6 @@ class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
         )
         self.add_item(self.image_url)
 
-        # Convert the bot's internal color code back to a standard Hex code
         hex_color = hex(embed.color.value).replace('0x', '').upper() if embed and embed.color else 'FF77AA'
         self.embed_color = discord.ui.TextInput(
             label='Hex Color (Optional)',
@@ -148,22 +146,27 @@ class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
         self.add_item(self.embed_color)
 
     async def on_submit(self, interaction: discord.Interaction):
+        # SAFETY CHECK
+        if not self.embed_title.value and not self.embed_desc.value and not self.image_url.value:
+            await interaction.response.send_message("❌ You must provide at least a Title, Description, or Image!", ephemeral=True)
+            return
+
         color_str = self.embed_color.value.replace("#", "") if self.embed_color.value else "FF77AA"
         try:
             color_val = int(color_str, 16)
         except ValueError:
             color_val = 0xFF77AA
 
+        # Build the new embed
         new_embed = discord.Embed(
-            title=self.embed_title.value,
-            description=self.embed_desc.value,
+            title=self.embed_title.value if self.embed_title.value else None,
+            description=self.embed_desc.value if self.embed_desc.value else None,
             color=color_val
         )
 
         if self.image_url.value:
             new_embed.set_image(url=self.image_url.value)
 
-        # Edit the existing message instead of sending a new one!
         await self.message.edit(embed=new_embed)
         await interaction.response.send_message("BAKUSHIN! The embed has been successfully updated!", ephemeral=True)
 
