@@ -19,18 +19,27 @@ class BakushinTasks(commands.Cog):
         self.global_tt_task.cancel()
         self.jp_tt_task.cancel()
 
-    async def send_reminder(self, region, quote_type, target_timestamp, title_context):
+async def send_reminder(self, region, quote_type, target_timestamp, title_context):
         conf = config.load_config()
         quote = get_quote(quote_type)
         embed = build_embed()
         
         # Loop through every server saved in the config.json
         for guild_id, settings in conf.items():
+            # SAFETY CHECK: Ignore old format data so it doesn't crash!
+            if not isinstance(settings, dict):
+                continue
+                
             channel_id = settings.get("channel_id")
             if not channel_id: continue
             
+            # Use fetch_channel as a fallback if the channel isn't in memory yet
             channel = self.bot.get_channel(channel_id)
-            if not channel: continue
+            if not channel:
+                try:
+                    channel = await self.bot.fetch_channel(channel_id)
+                except:
+                    continue
 
             role_id = settings.get(f"{region}_role_id")
             mentions = f"<@&{role_id}>" if role_id else ""
@@ -44,9 +53,9 @@ class BakushinTasks(commands.Cog):
                     allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False)
                 )
             except discord.Forbidden:
-                # If the bot loses permission to post in a server, it safely skips them
                 pass
             except Exception as e:
+                # This ensures any hidden errors are printed to your SSH console!
                 print(f"Failed to send to guild {guild_id}: {e}")
 
     # --- GLOBAL TASKS (UTC) ---
