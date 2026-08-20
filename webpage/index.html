@@ -7,7 +7,7 @@
   <style>
     /* --- THEME SETTINGS --- */
     body {
-      background-color: #ee6fab; /* Bakushin Pink */
+      background-color: #ee6fab;
       color: white;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 0;
@@ -30,11 +30,11 @@
       gap: 25px;
       margin-bottom: 30px;
       padding-bottom: 20px;
-      border-bottom: 2px solid white; /* Adds a nice clean line under the header */
+      border-bottom: 2px solid white;
     }
 
     .header-mascot {
-      width: 120px; /* Adjust her size here */
+      width: 120px;
       height: auto;
     }
 
@@ -47,7 +47,7 @@
     .header-title p {
       margin: 0;
       font-size: 16px;
-      color: #ffd1e3; /* Lighter pink for the sub-text */
+      color: #ffd1e3;
     }
 
     /* --- TOP BAR (ROUTING) --- */
@@ -59,7 +59,7 @@
     }
 
     input, textarea, select {
-      background-color: #523e57; /* Dark Slate Box */
+      background-color: #523e57;
       border: 2px solid white;
       color: white;
       padding: 12px;
@@ -114,7 +114,7 @@
     }
 
     #sendBtn {
-      background-color: #4CAF50; /* Green to stand out */
+      background-color: #4CAF50;
       border-color: white;
       margin-top: 20px;
       font-size: 16px;
@@ -145,7 +145,7 @@
 
     /* --- PREVIEW WINDOW --- */
     .preview-window {
-      background-color: #36393f; /* Discord Dark Mode Background */
+      background-color: #36393f;
       border: 2px solid white;
       min-height: 500px;
       padding: 20px;
@@ -156,10 +156,10 @@
 
     .embed-mockup {
       background-color: #2f3136;
-      border-left: 4px solid #FF77AA; /* Bakushin Pink Stripe */
+      border-left: 4px solid #FF77AA; /* Default Bakushin Pink */
       border-radius: 4px;
       padding: 15px;
-      display: none; /* Hidden until generated */
+      display: none;
     }
 
     .embed-title { font-weight: bold; color: white; margin-bottom: 8px; font-size: 16px; }
@@ -171,11 +171,12 @@
 
   <div class="container">
     
-    <!-- NEW HEADER BLOCK -->
+    <!-- HEADER BLOCK -->
     <div class="site-header">
       <img src="BakushinO.png" alt="Bakushin Mascot" class="header-mascot">
       <div class="header-title">
         <h1>Class President's Embed Builder</h1>
+        <p>UMA Club Announcements & Role Management</p>
       </div>
     </div>
 
@@ -191,6 +192,8 @@
       <div class="left-panel">
         <input type="text" id="titleInput" placeholder="Enter Embed Title Here">
         <input type="text" id="imageInput" placeholder="Enter image/gif link here">
+        <!-- NEW COLOR INPUT -->
+        <input type="text" id="colorInput" placeholder="Hex Color (Optional, default is Bakushin Pink: FF77AA)">
 
         <!-- Timestamp Generator -->
         <div class="static-box timestamp-box">
@@ -247,6 +250,7 @@
       const title = document.getElementById('titleInput').value;
       const desc = document.getElementById('descInput').value;
       const imgUrl = document.getElementById('imageInput').value;
+      let color = document.getElementById('colorInput').value.replace('#', '');
       
       const mockup = document.getElementById('embedMockup');
       const placeholder = document.getElementById('previewPlaceholder');
@@ -258,6 +262,10 @@
       document.getElementById('previewTitle').textContent = title;
       document.getElementById('previewDesc').textContent = desc;
       
+      // Update Preview Color (Fallback to Pink if invalid)
+      const validHex = /^[0-9A-F]{6}$/i.test(color) ? color : 'FF77AA';
+      mockup.style.borderLeftColor = `#${validHex}`;
+
       const imgElement = document.getElementById('previewImg');
       if (imgUrl) {
         imgElement.src = imgUrl;
@@ -275,6 +283,7 @@
       const title = document.getElementById('titleInput').value;
       const desc = document.getElementById('descInput').value;
       const imgUrl = document.getElementById('imageInput').value;
+      let colorStr = document.getElementById('colorInput').value.replace('#', '');
 
       if (!webhook || !channelId) {
         return alert("Error: You must provide the Webhook URL and Target Channel ID!");
@@ -283,6 +292,10 @@
         return alert("Error: The embed cannot be completely empty!");
       }
 
+      // Convert hex color to integer for Discord
+      let colorVal = parseInt(colorStr, 16);
+      if (isNaN(colorVal)) colorVal = 16742314; // Fallback to FF77AA
+
       // Determine if we are creating or editing
       let commandText = channelId;
       if (messageId) {
@@ -290,7 +303,7 @@
       }
 
       // Build the Discord Payload
-      const embedPayload = { color: 16742314 }; // Bakushin Pink
+      const embedPayload = { color: colorVal };
       if (title) embedPayload.title = title;
       if (desc) embedPayload.description = desc;
       if (imgUrl) embedPayload.image = { url: imgUrl };
@@ -321,5 +334,3 @@
   </script>
 </body>
 </html>
-
-
