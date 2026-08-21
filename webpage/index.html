@@ -189,6 +189,14 @@
     
     .embed-desc strong { font-weight: bold; color: white; }
     .embed-desc .discord-ping { background-color: rgba(88, 101, 242, 0.3); color: #c9cdfb; border-radius: 3px; padding: 0 2px; }
+
+    /* Blockquote styling to mimic Discord */
+    .embed-desc .md-blockquote { 
+      border-left: 4px solid #4f545c; 
+      padding: 0 8px 0 12px; 
+      margin: 4px 0; 
+      color: #b9bbbe; 
+    }
   </style>
 </head>
 <body>
@@ -231,6 +239,7 @@
             Headers: <code># H1</code> | <code>## H2</code> | <code>### H3</code><br>
             Text: <code>**Bold**</code> | <code>*Italic*</code> | <code>__Underline__</code> | <code>~~Strike~~</code><br>
             Lists: Bullet <code>* Text</code> | Number <code>1. Text</code><br>
+            Quotes: <code>&gt; Text</code> | Multi-line <code>&gt;&gt;&gt; Text</code><br>
             Links: <code>[Clickable Text](URL_HERE)</code><br>
             Pings: Roles <code>&lt;@&amp;ROLE_ID&gt;</code> | Emojis <code>&lt;:name:ID&gt;</code>
           </span>
@@ -293,24 +302,29 @@
       html = html.replace(/^[\*\-]\s+(.*)$/gm, '<div class="md-ul"><span>•</span> <span>$1</span></div>');
       html = html.replace(/^(\d+)\.\s+(.*)$/gm, '<div class="md-ol"><span>$1.</span> <span>$2</span></div>');
 
-      // 4. Parse Bold, Italic, Underline, Strikethrough
+      // 4. Parse Blockquotes (Catching both > and >>>)
+      // Because we sanitized HTML above, '>' is now '&gt;'
+      html = html.replace(/^&gt;&gt;&gt;\s+([\s\S]*)$/gm, '<div class="md-blockquote">$1</div>');
+      html = html.replace(/^&gt;\s+(.*)$/gm, '<div class="md-blockquote">$1</div>');
+
+      // 5. Parse Bold, Italic, Underline, Strikethrough
       html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
       html = html.replace(/__(.*?)__/g, '<u>$1</u>');
       html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
 
-      // 5. Parse Links
+      // 6. Parse Links
       html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
 
-      // 6. Parse Pings to look like Discord Tags
+      // 7. Parse Pings to look like Discord Tags
       html = html.replace(/&lt;@&amp;(\d+)&gt;/g, '<span class="discord-ping">@Role</span>');
       html = html.replace(/&lt;@(\d+)&gt;/g, '<span class="discord-ping">@User</span>');
       html = html.replace(/&lt;:(\w+):(\d+)&gt;/g, ':$1:');
 
-      // 7. Convert Line breaks to <br> tags
+      // 8. Convert Line breaks to <br> tags
       html = html.replace(/\n/g, '<br>');
       
-      // 8. Clean up extra line breaks right after our custom block elements
+      // 9. Clean up extra line breaks right after our custom block elements
       html = html.replace(/<\/(h1|h2|h3|div)><br>/g, '</$1>');
 
       return html;
