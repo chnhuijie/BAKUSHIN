@@ -175,10 +175,10 @@
     .embed-desc a { color: #00aff4; text-decoration: none; }
     .embed-desc a:hover { text-decoration: underline; }
     
-    /* Correctly scaled headers */
-    .embed-desc .md-h1 { margin: 12px 0 4px 0; font-size: 24px; font-weight: bold; color: white; }
-    .embed-desc .md-h2 { margin: 10px 0 4px 0; font-size: 20px; font-weight: bold; color: white; }
-    .embed-desc .md-h3 { margin: 8px 0 4px 0; font-size: 16px; font-weight: bold; color: white; }
+    /* Force exact Discord header scaling */
+    .embed-desc h1.md-h1 { margin: 16px 0 8px 0 !important; font-size: 24px !important; font-weight: bold !important; color: white !important; line-height: 1.2 !important; }
+    .embed-desc h2.md-h2 { margin: 14px 0 6px 0 !important; font-size: 20px !important; font-weight: bold !important; color: white !important; line-height: 1.2 !important; }
+    .embed-desc h3.md-h3 { margin: 12px 0 4px 0 !important; font-size: 16px !important; font-weight: bold !important; color: white !important; line-height: 1.2 !important; }
     
     /* List styling to mimic Discord's indent */
     .embed-desc .md-ul, .embed-desc .md-ol { 
@@ -200,7 +200,6 @@
       <img src="BakushinO.png" alt="Bakushin Mascot" class="header-mascot">
       <div class="header-title">
         <h1>Class President's Embed Builder</h1>
-        <p>UMA Club Announcements & Role Management</p>
       </div>
     </div>
 
@@ -274,22 +273,25 @@
     function parseDiscordMarkdown(text) {
       if (!text) return "";
 
+      // Normalize line endings to avoid hidden carriage returns breaking the layout
+      let html = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
       // 1. Sanitize HTML first to prevent code injection
-      let html = text
+      html = html
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 
-      // 2. Parse Headers (Must be at the start of a line)
-      html = html.replace(/^### (.*$)/gim, '<div class="md-h3">$1</div>');
-      html = html.replace(/^## (.*$)/gim, '<div class="md-h2">$1</div>');
-      html = html.replace(/^# (.*$)/gim, '<div class="md-h1">$1</div>');
+      // 2. Parse Headers (Using semantic H tags for guaranteed scaling)
+      html = html.replace(/^###\s+(.*)$/gm, '<h3 class="md-h3">$1</h3>');
+      html = html.replace(/^##\s+(.*)$/gm, '<h2 class="md-h2">$1</h2>');
+      html = html.replace(/^#\s+(.*)$/gm, '<h1 class="md-h1">$1</h1>');
 
       // 3. Parse Lists (Bullets and Numbers)
-      html = html.replace(/^[\*\-] (.*$)/gim, '<div class="md-ul"><span>•</span> <span>$1</span></div>');
-      html = html.replace(/^(\d+)\. (.*$)/gim, '<div class="md-ol"><span>$1.</span> <span>$2</span></div>');
+      html = html.replace(/^[\*\-]\s+(.*)$/gm, '<div class="md-ul"><span>•</span> <span>$1</span></div>');
+      html = html.replace(/^(\d+)\.\s+(.*)$/gm, '<div class="md-ol"><span>$1.</span> <span>$2</span></div>');
 
       // 4. Parse Bold, Italic, Underline, Strikethrough
       html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
@@ -309,7 +311,7 @@
       html = html.replace(/\n/g, '<br>');
       
       // 8. Clean up extra line breaks right after our custom block elements
-      html = html.replace(/<\/div><br>/g, '</div>');
+      html = html.replace(/<\/(h1|h2|h3|div)><br>/g, '</$1>');
 
       return html;
     }
