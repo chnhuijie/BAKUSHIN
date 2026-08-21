@@ -174,7 +174,19 @@
     }
     .embed-desc a { color: #00aff4; text-decoration: none; }
     .embed-desc a:hover { text-decoration: underline; }
-    .embed-desc h1, .embed-desc h2, .embed-desc h3 { margin: 8px 0 4px 0; font-size: 16px; font-weight: bold; color: white; }
+    
+    /* Correctly scaled headers */
+    .embed-desc .md-h1 { margin: 12px 0 4px 0; font-size: 24px; font-weight: bold; color: white; }
+    .embed-desc .md-h2 { margin: 10px 0 4px 0; font-size: 20px; font-weight: bold; color: white; }
+    .embed-desc .md-h3 { margin: 8px 0 4px 0; font-size: 16px; font-weight: bold; color: white; }
+    
+    /* List styling to mimic Discord's indent */
+    .embed-desc .md-ul, .embed-desc .md-ol { 
+      padding-left: 16px; 
+      text-indent: -12px;
+      margin-top: 2px;
+    }
+    
     .embed-desc strong { font-weight: bold; color: white; }
     .embed-desc .discord-ping { background-color: rgba(88, 101, 242, 0.3); color: #c9cdfb; border-radius: 3px; padding: 0 2px; }
   </style>
@@ -271,26 +283,33 @@
         .replace(/'/g, "&#039;");
 
       // 2. Parse Headers (Must be at the start of a line)
-      html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-      html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-      html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+      html = html.replace(/^### (.*$)/gim, '<div class="md-h3">$1</div>');
+      html = html.replace(/^## (.*$)/gim, '<div class="md-h2">$1</div>');
+      html = html.replace(/^# (.*$)/gim, '<div class="md-h1">$1</div>');
 
-      // 3. Parse Bold, Italic, Underline, Strikethrough
+      // 3. Parse Lists (Bullets and Numbers)
+      html = html.replace(/^[\*\-] (.*$)/gim, '<div class="md-ul"><span>•</span> <span>$1</span></div>');
+      html = html.replace(/^(\d+)\. (.*$)/gim, '<div class="md-ol"><span>$1.</span> <span>$2</span></div>');
+
+      // 4. Parse Bold, Italic, Underline, Strikethrough
       html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
       html = html.replace(/__(.*?)__/g, '<u>$1</u>');
       html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
 
-      // 4. Parse Links [Text](URL)
+      // 5. Parse Links
       html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
 
-      // 5. Parse Pings to look like Discord Tags
+      // 6. Parse Pings to look like Discord Tags
       html = html.replace(/&lt;@&amp;(\d+)&gt;/g, '<span class="discord-ping">@Role</span>');
       html = html.replace(/&lt;@(\d+)&gt;/g, '<span class="discord-ping">@User</span>');
       html = html.replace(/&lt;:(\w+):(\d+)&gt;/g, ':$1:');
 
-      // 6. Convert Line breaks to <br> tags
+      // 7. Convert Line breaks to <br> tags
       html = html.replace(/\n/g, '<br>');
+      
+      // 8. Clean up extra line breaks right after our custom block elements
+      html = html.replace(/<\/div><br>/g, '</div>');
 
       return html;
     }
