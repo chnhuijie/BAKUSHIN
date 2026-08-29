@@ -262,29 +262,79 @@ class BakushinCommands(commands.Cog):
         if not message.webhook_id:
             return
             
-        # 2. Check if there are text instructions AND an embed attached
-        if message.content and message.embeds:
+        # 2. Check if there are instructions in the text
+        if message.content:
             try:
-                # Split the text into parts (e.g., ["EDIT", "12345", "67890"])
-                parts = message.content.split()
+                # Split routing instructions from actual message text using our secret divider
+                raw_parts = message.content.split(" ::: ", 1)
+                routing_args = raw_parts[0].split()
+                msg_text = raw_parts[1] if len(raw_parts) > 1 else None
                 
+                # Extract the embed if the user built one
+                msg_embed = message.embeds[0] if message.embeds else None
+
+                # Abort if the user sent a completely empty form
+                if not msg_text and not msg_embed:
+                    return
+
                 # --- EDIT MODE ---
-                if parts[0] == "EDIT" and len(parts) == 3:
-                    channel_id = int(parts[1])
-                    message_id = int(parts[2])
+                if routing_args[0] == "EDIT" and len(routing_args) == 3:
+                    channel_id = int(routing_args[1])
+                    message_id = int(routing_args[2])
                     
                     target_channel = self.bot.get_channel(channel_id)
                     if target_channel:
                         target_message = await target_channel.fetch_message(message_id)
                         
-                        # Tell Bakushin to edit her existing message with the new embed!
-                        await target_message.edit(embed=message.embeds[0])
-                        await message.delete() # Clean up the hidden relay message
+                        # Edit the message with text, an embed, or both!
+                        await target_message.edit(content=msg_text, embed=msg_embed)
+                        await message.delete() 
                         
-                        # SUCCESS CONFIRMATION:
-                        await message.channel.send(f"**BAKUSHIN!** Embed successfully edited in {target_channel.mention}!")
+                        await message.channel.send(f"**BAKUSHIN!** Message successfully edited in {target_channel.mention}!")
                     else:
                         raise ValueError("Target channel not found.")
+
+                # --- CREATE MODE ---
+                elif routing_args[0].isdigit():
+                    channel_id = int(routing_args[0])
+                    
+                    target_channel = self.bot.get_channel(channel_id)
+                    if target_channel:
+                        # Send the message natively as Bakushin!
+                        await target_channel.send(content=msg_text, embed=msg_embed)
+                        await message.delete() 
+                        
+                        await message.channel.send(f"**BAKUSHIN!** Message successfully sent to {target_channel.mention}!")
+                    else:
+                        raise ValueError("Target channel not found.")
+                        
+            # --- ERROR LOGGING ROUTER ---
+            except Exception as e:
+                if isinstance(e, discord.Forbidden):
+                    reason = "403 Forbidden: Missing permissions to send/edit in the Target Channel, or missing Manage Messages in the Relay Channel."
+                elif isinstance(e, discord.NotFound):
+                    reason = "404 Not Found: Could not find the Message ID to edit."
+                elif isinstance(e, ValueError):
+                    reason = "Invalid ID Format: Please check the Channel ID and Message ID boxes."
+                else:
+                    reason = str(e)
+
+                log_text = (
+                    f"**Action:** `Webhook Embed Relay`\n"
+                    f"**Relay Room:** {message.channel.mention}\n"
+                    f"**Reason:** `{reason}`\n"
+                    f"[Jump to Webhook Message]({message.jump_url})"
+                )
+                
+                import config
+                conf = config.load_config()
+                log_channel_id = conf.get("global_log_channel")
+                
+                if log_channel_id:
+                    log_channel = self.bot.get_channel(log_channel_id)
+                    if log_channel:
+                        error_embed = discord.Embed(title="Bakushin Relay Error", description=log_text, color=0xFF0000)
+                        await log_channel.send(embed=error_embed)
 
                 # --- CREATE MODE ---
                 elif parts[0].isdigit():
