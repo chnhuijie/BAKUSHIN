@@ -44,12 +44,6 @@
       letter-spacing: 1px;
     }
 
-    .header-title p {
-      margin: 0;
-      font-size: 16px;
-      color: #ffd1e3;
-    }
-
     /* --- TOP BAR (ROUTING) --- */
     .top-bar {
       display: flex;
@@ -136,12 +130,15 @@
       align-items: center;
     }
 
-    #descInput {
-      height: 300px;
+    #descInput, #plainTextInput {
       resize: vertical;
       text-align: left;
     }
-    #descInput::placeholder { text-align: center; line-height: 250px; }
+    #plainTextInput { height: 100px; }
+    #descInput { height: 250px; }
+    
+    #plainTextInput::placeholder { text-align: center; line-height: 70px; }
+    #descInput::placeholder { text-align: center; line-height: 200px; }
 
     /* --- PREVIEW WINDOW --- */
     .preview-window {
@@ -152,6 +149,14 @@
       border-radius: 4px;
       display: flex;
       flex-direction: column;
+    }
+    
+    #previewMsgText {
+      color: #dcddde;
+      font-size: 15px;
+      margin-bottom: 10px;
+      line-height: 1.4;
+      display: none;
     }
 
     .embed-mockup {
@@ -166,37 +171,28 @@
     .embed-img { max-width: 100%; border-radius: 4px; }
     
     /* --- PREVIEW MARKDOWN STYLING --- */
-    .embed-desc { 
+    .embed-desc, #previewMsgText { 
       color: #dcddde; 
       font-size: 14px; 
       margin-bottom: 15px; 
       line-height: 1.3;
     }
-    .embed-desc a { color: #00aff4; text-decoration: none; }
-    .embed-desc a:hover { text-decoration: underline; }
+    .embed-desc a, #previewMsgText a { color: #00aff4; text-decoration: none; }
+    .embed-desc a:hover, #previewMsgText a:hover { text-decoration: underline; }
     
-    /* Force exact Discord header scaling */
-    .embed-desc h1.md-h1 { margin: 16px 0 8px 0 !important; font-size: 24px !important; font-weight: bold !important; color: white !important; line-height: 1.2 !important; }
-    .embed-desc h2.md-h2 { margin: 14px 0 6px 0 !important; font-size: 20px !important; font-weight: bold !important; color: white !important; line-height: 1.2 !important; }
-    .embed-desc h3.md-h3 { margin: 12px 0 4px 0 !important; font-size: 16px !important; font-weight: bold !important; color: white !important; line-height: 1.2 !important; }
+    .embed-desc h1.md-h1, #previewMsgText h1.md-h1 { margin: 16px 0 8px 0 !important; font-size: 24px !important; font-weight: bold !important; color: white !important; line-height: 1.2 !important; }
+    .embed-desc h2.md-h2, #previewMsgText h2.md-h2 { margin: 14px 0 6px 0 !important; font-size: 20px !important; font-weight: bold !important; color: white !important; line-height: 1.2 !important; }
+    .embed-desc h3.md-h3, #previewMsgText h3.md-h3 { margin: 12px 0 4px 0 !important; font-size: 16px !important; font-weight: bold !important; color: white !important; line-height: 1.2 !important; }
     
-    /* List styling to mimic Discord's indent */
-    .embed-desc .md-ul, .embed-desc .md-ol { 
+    .embed-desc .md-ul, .embed-desc .md-ol, #previewMsgText .md-ul, #previewMsgText .md-ol { 
       padding-left: 16px; 
       text-indent: -12px;
       margin-top: 2px;
     }
     
-    .embed-desc strong { font-weight: bold; color: white; }
-    .embed-desc .discord-ping { background-color: rgba(88, 101, 242, 0.3); color: #c9cdfb; border-radius: 3px; padding: 0 2px; }
-
-    /* Blockquote styling to mimic Discord */
-    .embed-desc .md-blockquote { 
-      border-left: 4px solid #4f545c; 
-      padding: 0 8px 0 12px; 
-      margin: 4px 0; 
-      color: #b9bbbe; 
-    }
+    .embed-desc strong, #previewMsgText strong { font-weight: bold; color: white; }
+    .embed-desc .discord-ping, #previewMsgText .discord-ping { background-color: rgba(88, 101, 242, 0.3); color: #c9cdfb; border-radius: 3px; padding: 0 2px; }
+    .embed-desc .md-blockquote, #previewMsgText .md-blockquote { border-left: 4px solid #4f545c; padding: 0 8px 0 12px; margin: 4px 0; color: #b9bbbe; }
   </style>
 </head>
 <body>
@@ -207,7 +203,7 @@
     <div class="site-header">
       <img src="BakushinO.png" alt="Bakushin Mascot" class="header-mascot">
       <div class="header-title">
-        <h1>Class President's Embed Builder</h1>
+        <h1>Class President's Message & Embed Builder</h1>
       </div>
     </div>
 
@@ -221,8 +217,10 @@
     <div class="grid">
       <!-- Left Panel: Content & Utilities -->
       <div class="left-panel">
-        <input type="text" id="titleInput" placeholder="Enter Embed Title Here">
-        <input type="text" id="imageInput" placeholder="Enter image/gif link here">
+        <textarea id="plainTextInput" placeholder="Enter Normal Text Message or Pings Here (Optional)"></textarea>
+      
+        <input type="text" id="titleInput" placeholder="Enter Embed Title Here (Optional)">
+        <input type="text" id="imageInput" placeholder="Enter image/gif link here (Optional)">
         <input type="text" id="colorInput" placeholder="Hex Color (Optional, default is Bakushin Pink: FF77AA)">
 
         <!-- Timestamp Generator -->
@@ -245,7 +243,7 @@
           </span>
         </div>
 
-        <textarea id="descInput" placeholder="Enter description here (optional)"></textarea>
+        <textarea id="descInput" placeholder="Enter Embed Description Here (Optional)"></textarea>
       </div>
 
       <!-- Right Panel: Preview & Send -->
@@ -255,9 +253,12 @@
         <div class="preview-window">
           <div style="text-align: center; color: #72767d; margin-top: 200px;" id="previewPlaceholder">PREVIEW</div>
           
+          <!-- Normal Text Preview -->
+          <div id="previewMsgText"></div>
+          
+          <!-- Embed Preview -->
           <div class="embed-mockup" id="embedMockup">
             <div class="embed-title" id="previewTitle"></div>
-            <!-- Swapped to support HTML rendering for the Markdown Parser -->
             <div class="embed-desc" id="previewDesc"></div>
             <img class="embed-img" id="previewImg" src="" alt="">
           </div>
@@ -281,82 +282,68 @@
     // --- DISCORD MARKDOWN PARSER ---
     function parseDiscordMarkdown(text) {
       if (!text) return "";
-
-      // Normalize line endings to avoid hidden carriage returns breaking the layout
       let html = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-      // 1. Sanitize HTML first to prevent code injection
-      html = html
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-
-      // 2. Parse Headers (Using semantic H tags for guaranteed scaling)
+      html = html.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
       html = html.replace(/^###\s+(.*)$/gm, '<h3 class="md-h3">$1</h3>');
       html = html.replace(/^##\s+(.*)$/gm, '<h2 class="md-h2">$1</h2>');
       html = html.replace(/^#\s+(.*)$/gm, '<h1 class="md-h1">$1</h1>');
-
-      // 3. Parse Lists (Bullets and Numbers)
       html = html.replace(/^[\*\-]\s+(.*)$/gm, '<div class="md-ul"><span>•</span> <span>$1</span></div>');
       html = html.replace(/^(\d+)\.\s+(.*)$/gm, '<div class="md-ol"><span>$1.</span> <span>$2</span></div>');
-
-      // 4. Parse Blockquotes (Catching both > and >>>)
-      // Because we sanitized HTML above, '>' is now '&gt;'
       html = html.replace(/^&gt;&gt;&gt;\s+([\s\S]*)$/gm, '<div class="md-blockquote">$1</div>');
       html = html.replace(/^&gt;\s+(.*)$/gm, '<div class="md-blockquote">$1</div>');
-
-      // 5. Parse Bold, Italic, Underline, Strikethrough
       html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
       html = html.replace(/__(.*?)__/g, '<u>$1</u>');
       html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
-
-      // 6. Parse Links
       html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-
-      // 7. Parse Pings to look like Discord Tags
       html = html.replace(/&lt;@&amp;(\d+)&gt;/g, '<span class="discord-ping">@Role</span>');
       html = html.replace(/&lt;@(\d+)&gt;/g, '<span class="discord-ping">@User</span>');
       html = html.replace(/&lt;:(\w+):(\d+)&gt;/g, ':$1:');
-
-      // 8. Convert Line breaks to <br> tags
       html = html.replace(/\n/g, '<br>');
-      
-      // 9. Clean up extra line breaks right after our custom block elements
       html = html.replace(/<\/(h1|h2|h3|div)><br>/g, '</$1>');
-
       return html;
     }
 
     // --- PREVIEW LOGIC ---
     document.getElementById('previewBtn').addEventListener('click', function() {
+      const msgText = document.getElementById('plainTextInput').value;
       const title = document.getElementById('titleInput').value;
       const desc = document.getElementById('descInput').value;
       const imgUrl = document.getElementById('imageInput').value;
       let color = document.getElementById('colorInput').value.replace('#', '');
       
-      const mockup = document.getElementById('embedMockup');
       const placeholder = document.getElementById('previewPlaceholder');
+      const textPreview = document.getElementById('previewMsgText');
+      const mockup = document.getElementById('embedMockup');
 
       placeholder.style.display = 'none';
-      mockup.style.display = 'block';
 
-      document.getElementById('previewTitle').textContent = title;
-      
-      // Inject the newly parsed Markdown HTML instead of raw text
-      document.getElementById('previewDesc').innerHTML = parseDiscordMarkdown(desc);
-      
-      const validHex = /^[0-9A-F]{6}$/i.test(color) ? color : 'FF77AA';
-      mockup.style.borderLeftColor = `#${validHex}`;
-
-      const imgElement = document.getElementById('previewImg');
-      if (imgUrl) {
-        imgElement.src = imgUrl;
-        imgElement.style.display = 'block';
+      // 1. Process Normal Text
+      if (msgText) {
+        textPreview.innerHTML = parseDiscordMarkdown(msgText);
+        textPreview.style.display = 'block';
       } else {
-        imgElement.style.display = 'none';
+        textPreview.style.display = 'none';
+      }
+
+      // 2. Process Embed
+      if (title || desc || imgUrl) {
+        mockup.style.display = 'block';
+        document.getElementById('previewTitle').textContent = title;
+        document.getElementById('previewDesc').innerHTML = parseDiscordMarkdown(desc);
+        
+        const validHex = /^[0-9A-F]{6}$/i.test(color) ? color : 'FF77AA';
+        mockup.style.borderLeftColor = `#${validHex}`;
+
+        const imgElement = document.getElementById('previewImg');
+        if (imgUrl) {
+          imgElement.src = imgUrl;
+          imgElement.style.display = 'block';
+        } else {
+          imgElement.style.display = 'none';
+        }
+      } else {
+        mockup.style.display = 'none';
       }
     });
 
@@ -365,6 +352,8 @@
       const webhook = document.getElementById('webhookInput').value;
       const channelId = document.getElementById('channelIdInput').value;
       const messageId = document.getElementById('messageIdInput').value;
+      
+      const msgText = document.getElementById('plainTextInput').value;
       const title = document.getElementById('titleInput').value;
       const desc = document.getElementById('descInput').value;
       const imgUrl = document.getElementById('imageInput').value;
@@ -373,26 +362,36 @@
       if (!webhook || !channelId) {
         return alert("Error: You must provide the Webhook URL and Target Channel ID!");
       }
-      if (!title && !desc && !imgUrl) {
-        return alert("Error: The embed cannot be completely empty!");
+      if (!title && !desc && !imgUrl && !msgText) {
+        return alert("Error: The message cannot be completely empty!");
       }
 
-      let colorVal = parseInt(colorStr, 16);
-      if (isNaN(colorVal)) colorVal = 16742314; 
-
+      // 1. Build Routing Command & Append Plain Text with the Secret Divider
       let commandText = channelId;
       if (messageId) {
         commandText = `EDIT ${channelId} ${messageId}`;
       }
+      if (msgText) {
+        commandText += ` ::: ${msgText}`;
+      }
 
-      const embedPayload = { color: colorVal };
-      if (title) embedPayload.title = title;
-      if (desc) embedPayload.description = desc;
-      if (imgUrl) embedPayload.image = { url: imgUrl };
+      // 2. Build Embed Payload (Only if embed fields are filled)
+      const embedsArray = [];
+      if (title || desc || imgUrl) {
+        let colorVal = parseInt(colorStr, 16);
+        if (isNaN(colorVal)) colorVal = 16742314; 
+        
+        const embedPayload = { color: colorVal };
+        if (title) embedPayload.title = title;
+        if (desc) embedPayload.description = desc;
+        if (imgUrl) embedPayload.image = { url: imgUrl };
+        embedsArray.push(embedPayload);
+      }
 
+      // 3. Assemble Final Payload
       const discordPayload = {
         content: commandText,
-        embeds: [embedPayload]
+        embeds: embedsArray
       };
 
       try {
@@ -403,7 +402,7 @@
         });
 
         if (response.ok) {
-          alert("Success! The embed has been routed to Bakushin.");
+          alert("Success! The data has been routed to Bakushin.");
         } else {
           alert("Error: Discord rejected the webhook. Check your URL.");
         }
