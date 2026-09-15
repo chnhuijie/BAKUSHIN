@@ -97,6 +97,76 @@ class CreateEventModal(discord.ui.Modal, title="Create New Event"):
             ephemeral=True
         )
 
+class EditEventModal(discord.ui.Modal):
+    def __init__(self, bot: commands.Bot, event_id: str, current_data: dict):
+        super().__init__(title="Edit Active Event")
+        self.bot = bot
+        self.event_id = event_id
+        self.current_data = current_data
+
+        self.event_name = discord.ui.TextInput(
+            label="Event Name",
+            default=current_data.get("name", ""),
+            required=True
+        )
+        self.add_item(self.event_name)
+
+        self.role_name = discord.ui.TextInput(
+            label="Role Name",
+            default=current_data.get("role_name", ""),
+            required=True
+        )
+        self.add_item(self.role_name)
+
+        self.emoji_input = discord.ui.TextInput(
+            label="Reaction Emoji",
+            default=current_data.get("emoji", ""),
+            required=False
+        )
+        self.add_item(self.emoji_input)
+
+        dt = datetime.datetime.fromtimestamp(current_data.get("end_time", 0), tz=datetime.timezone.utc)
+        self.end_time_input = discord.ui.TextInput(
+            label="End Time (UTC) or Duration",
+            default=dt.strftime("%Y-%m-%d %H:%M"),
+            required=True
+        )
+        self.add_item(self.end_time_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            new_end_ts = parse_time_input(self.end_time_input.value)
+        except ValueError as err:
+            await interaction.response.send_message(f"[Error] {err}", ephemeral=True)
+            return
+
+        events_data = config.load_events()
+        if self.event_id not in events_data.get("events", {}):
+            await interaction.response.send_message("[Error] Event not found or already ended.", ephemeral=True)
+            return
+
+        chosen_emoji = get_available_emoji(interaction.guild.id, events_data, self.emoji_input.value)
+
+        # Attempt to rename the actual Discord role
+        role = interaction.guild.get_role(self.current_data["role_id"])
+        if role:
+            try:
+                await role.edit(name=self.role_name.value, reason=f"Event updated to {self.event_name.value}")
+            except discord.Forbidden:
+                pass 
+
+        events_data["events"][self.event_id].update({
+            "name": self.event_name.value,
+            "role_name": self.role_name.value,
+            "end_time": new_end_ts,
+            "emoji": chosen_emoji
+        })
+        
+        config.save_events(events_data)
+        await update_event_board(self.bot, interaction.guild.id)
+        
+        await interaction.response.send_message(f"[BAKUSHIN] Event '{self.event_name.value}' has been successfully updated!", ephemeral=True)
+
 class CreatePermanentRoleModal(discord.ui.Modal, title="Create Permanent Game Role"):
     def __init__(self, bot: commands.Bot):
         super().__init__()
@@ -180,7 +250,7 @@ class AssignUserSelectView(discord.ui.View):
         names = ", ".join(added) if added else "None"
         await interaction.response.send_message(f"Assigned {self.role.mention} to: {names}", ephemeral=True)
 
-# --- EVENT HUB VIEW (/event) ---
+# --- EVENT HUB VIEWS (/event) ---
 class EventManageSelect(discord.ui.Select):
     def __init__(self, guild_events: dict):
         options = []
@@ -216,6 +286,34 @@ class EventManageSelect(discord.ui.Select):
             ephemeral=True
         )
 
+class EventEditSelect(discord.ui.Select):
+    def __init__(self, bot: commands.Bot, guild_events: dict):
+        self.bot = bot
+        options = []
+        for ev_id, ev in guild_events.items():
+            dt_str = datetime.datetime.fromtimestamp(ev["end_time"], tz=datetime.timezone.utc).strftime('%Y-%m-%d %H:%M')
+            options.append(discord.SelectOption(
+                label=ev["name"][:100],
+                value=ev_id,
+                description=f"Ends: {dt_str} UTC"[:100]
+            ))
+        super().__init__(placeholder="Select an active event to edit", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        event_id = self.values[0]
+        events_data = config.load_events()
+        ev = events_data.get("events", {}).get(event_id)
+        if not ev:
+            await interaction.response.send_message("Event not found or already ended.", ephemeral=True)
+            return
+
+        await interaction.response.send_modal(EditEventModal(self.bot, event_id, ev))
+
+class EventEditSelectView(discord.ui.View):
+    def __init__(self, bot: commands.Bot, guild_events: dict):
+        super().__init__(timeout=120)
+        self.add_item(EventEditSelect(bot, guild_events))
+
 class EventHubView(discord.ui.View):
     def __init__(self, bot: commands.Bot, guild: discord.Guild, guild_events: dict):
         super().__init__(timeout=180)
@@ -227,6 +325,22 @@ class EventHubView(discord.ui.View):
     @discord.ui.button(label="Create Event", style=discord.ButtonStyle.primary)
     async def create_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(CreateEventModal(self.bot))
+
+    @discord.ui.button(label="Edit Event", style=discord.ButtonStyle.secondary)
+    async def edit_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        events_data = config.load_events()
+        guild_id = str(self.guild.id)
+        guild_events = {k: v for k, v in events_data.get("events", {}).items() if str(v.get("guild_id")) == guild_id}
+        
+        if not guild_events:
+            await interaction.response.send_message("There are no active temporary events to edit.", ephemeral=True)
+            return
+        
+        await interaction.response.send_message(
+            "Select the event you wish to edit:",
+            view=EventEditSelectView(self.bot, guild_events),
+            ephemeral=True
+        )
 
     @discord.ui.button(label="Add Permanent Role", style=discord.ButtonStyle.secondary)
     async def perm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
