@@ -585,6 +585,8 @@ class BakushinCommands(commands.Cog):
             await interaction.response.send_message("You must select at least one channel to setup a board!", ephemeral=True)
             return
 
+        await interaction.response.defer(ephemeral=True)
+
         events_data = config.load_events()
         guild_id_str = str(interaction.guild.id)
         boards = events_data.setdefault("boards", {}).setdefault(guild_id_str, {})
