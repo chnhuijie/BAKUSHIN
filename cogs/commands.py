@@ -16,38 +16,20 @@ from utils import (
 )
 from quotes import get_quote
 
-# --- EVENT MANAGEMENT MODALS ---
+
+# ==========================================
+# 1. EVENT MODALS (TEMPORARY)
+# ==========================================
 class CreateEventModal(discord.ui.Modal, title="Create New Event"):
     def __init__(self, bot: commands.Bot):
         super().__init__()
         self.bot = bot
 
-    event_name = discord.ui.TextInput(
-        label="Event Name",
-        placeholder="e.g., Summer Sprint Tournament",
-        required=True
-    )
-    role_name = discord.ui.TextInput(
-        label="Role Name",
-        placeholder="e.g., Sprint Contender",
-        required=True
-    )
-    emoji_input = discord.ui.TextInput(
-        label="Reaction Emoji (Optional)",
-        placeholder="e.g., standard emoji or server emoji. Blank = auto",
-        required=False
-    )
-    role_color = discord.ui.TextInput(
-        label="Role Hex Color",
-        placeholder="FF77AA",
-        default="FF77AA",
-        required=False
-    )
-    end_time_input = discord.ui.TextInput(
-        label="Event Duration or End Time (UTC)",
-        placeholder="e.g., 2h, 1d, or 2026-10-31 18:00",
-        required=True
-    )
+    event_name = discord.ui.TextInput(label="Event Name", placeholder="e.g., Summer Sprint Tournament", required=True)
+    role_name = discord.ui.TextInput(label="Role Name", placeholder="e.g., Sprint Contender", required=True)
+    emoji_input = discord.ui.TextInput(label="Reaction Emoji (Optional)", placeholder="e.g., standard emoji or server emoji. Blank = auto", required=False)
+    role_color = discord.ui.TextInput(label="Role Hex Color", placeholder="FF77AA", default="FF77AA", required=False)
+    end_time_input = discord.ui.TextInput(label="Event Duration or End Time (UTC)", placeholder="e.g., 2h, 1d, or 2026-10-31 18:00", required=True)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
@@ -70,7 +52,7 @@ class CreateEventModal(discord.ui.Modal, title="Create New Event"):
                 reason=f"Event role for {self.event_name.value}"
             )
         except discord.Forbidden:
-            await interaction.response.send_message("[Error] Missing Manage Roles permission to create the event role.", ephemeral=True)
+            await interaction.response.send_message("[Error] Missing Manage Roles permission.", ephemeral=True)
             return
 
         events_data = config.load_events()
@@ -92,14 +74,10 @@ class CreateEventModal(discord.ui.Modal, title="Create New Event"):
             f"- Event: **{self.event_name.value}**\n"
             f"- Role: {new_role.mention}\n"
             f"- Reaction: {chosen_emoji}\n"
-            f"- Ends: <t:{end_ts}:F> (<t:{end_ts}:R>)\n"
-            f"The role will be automatically deleted when the event concludes.",
+            f"- Ends: <t:{end_ts}:F> (<t:{end_ts}:R>)",
             ephemeral=True
         )
-        
-        # Update boards in background
         await update_boards(self.bot, interaction.guild.id)
-
 
 class EditEventModal(discord.ui.Modal):
     def __init__(self, bot: commands.Bot, event_id: str, current_data: dict):
@@ -108,33 +86,15 @@ class EditEventModal(discord.ui.Modal):
         self.event_id = event_id
         self.current_data = current_data
 
-        self.event_name = discord.ui.TextInput(
-            label="Event Name",
-            default=current_data.get("name", ""),
-            required=True
-        )
+        self.event_name = discord.ui.TextInput(label="Event Name", default=current_data.get("name", ""), required=True)
         self.add_item(self.event_name)
-
-        self.role_name = discord.ui.TextInput(
-            label="Role Name",
-            default=current_data.get("role_name", ""),
-            required=True
-        )
+        self.role_name = discord.ui.TextInput(label="Role Name", default=current_data.get("role_name", ""), required=True)
         self.add_item(self.role_name)
-
-        self.emoji_input = discord.ui.TextInput(
-            label="Reaction Emoji",
-            default=current_data.get("emoji", ""),
-            required=False
-        )
+        self.emoji_input = discord.ui.TextInput(label="Reaction Emoji", default=current_data.get("emoji", ""), required=False)
         self.add_item(self.emoji_input)
 
         dt = datetime.datetime.fromtimestamp(current_data.get("end_time", 0), tz=datetime.timezone.utc)
-        self.end_time_input = discord.ui.TextInput(
-            label="End Time (UTC) or Duration",
-            default=dt.strftime("%Y-%m-%d %H:%M"),
-            required=True
-        )
+        self.end_time_input = discord.ui.TextInput(label="End Time (UTC) or Duration", default=dt.strftime("%Y-%m-%d %H:%M"), required=True)
         self.add_item(self.end_time_input)
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -150,7 +110,6 @@ class EditEventModal(discord.ui.Modal):
             return
 
         chosen_emoji = get_available_emoji(interaction.guild.id, events_data, self.emoji_input.value)
-
         role = interaction.guild.get_role(self.current_data["role_id"])
         if role:
             try:
@@ -166,37 +125,22 @@ class EditEventModal(discord.ui.Modal):
         })
         
         config.save_events(events_data)
-        
         await interaction.response.send_message(f"[BAKUSHIN] Event '{self.event_name.value}' has been successfully updated!", ephemeral=True)
         await update_boards(self.bot, interaction.guild.id)
 
 
+# ==========================================
+# 2. GAME ROLE MODALS (PERMANENT)
+# ==========================================
 class CreatePermanentRoleModal(discord.ui.Modal, title="Create Permanent Game Role"):
     def __init__(self, bot: commands.Bot):
         super().__init__()
         self.bot = bot
 
-    role_name = discord.ui.TextInput(
-        label="Role Name",
-        placeholder="e.g., Maple Bossing or Uma Lobbies",
-        required=True
-    )
-    emoji_input = discord.ui.TextInput(
-        label="Reaction Emoji (Optional)",
-        placeholder="e.g., standard emoji or server emoji. Blank = auto",
-        required=False
-    )
-    role_color = discord.ui.TextInput(
-        label="Role Hex Color",
-        placeholder="FF77AA",
-        default="FF77AA",
-        required=False
-    )
-    description = discord.ui.TextInput(
-        label="Role Description",
-        placeholder="e.g., Ping to coordinate multiplayer lobbies",
-        required=False
-    )
+    role_name = discord.ui.TextInput(label="Role Name", placeholder="e.g., Maple Bossing", required=True)
+    emoji_input = discord.ui.TextInput(label="Reaction Emoji (Optional)", placeholder="Blank = auto", required=False)
+    role_color = discord.ui.TextInput(label="Role Hex Color", placeholder="FF77AA", default="FF77AA", required=False)
+    description = discord.ui.TextInput(label="Role Description", placeholder="e.g., Ping to coordinate multiplayer lobbies", required=False)
 
     async def on_submit(self, interaction: discord.Interaction):
         color_str = self.role_color.value.replace("#", "") if self.role_color.value else "FF77AA"
@@ -232,15 +176,53 @@ class CreatePermanentRoleModal(discord.ui.Modal, title="Create Permanent Game Ro
         await interaction.response.send_message(
             f"[BAKUSHIN] Permanent role created!\n"
             f"- Role: {new_role.mention}\n"
-            f"- Reaction: {chosen_emoji}\n"
-            f"- Use: React on the role board to assign or remove this role.",
+            f"- Reaction: {chosen_emoji}",
             ephemeral=True
         )
+        await update_boards(self.bot, interaction.guild.id)
+
+class EditGameRoleModal(discord.ui.Modal):
+    def __init__(self, bot: commands.Bot, perm_id: str, current_data: dict):
+        super().__init__(title="Edit Game Role")
+        self.bot = bot
+        self.perm_id = perm_id
+        self.current_data = current_data
+
+        self.role_name = discord.ui.TextInput(label="Role Name", default=current_data.get("name", ""), required=True)
+        self.add_item(self.role_name)
+        self.emoji_input = discord.ui.TextInput(label="Reaction Emoji", default=current_data.get("emoji", ""), required=False)
+        self.add_item(self.emoji_input)
+        self.description = discord.ui.TextInput(label="Role Description", default=current_data.get("description", ""), required=False)
+        self.add_item(self.description)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        events_data = config.load_events()
+        if self.perm_id not in events_data.get("permanent_roles", {}):
+            await interaction.response.send_message("[Error] Game role not found.", ephemeral=True)
+            return
+
+        chosen_emoji = get_available_emoji(interaction.guild.id, events_data, self.emoji_input.value)
+        role = interaction.guild.get_role(self.current_data["role_id"])
+        if role:
+            try:
+                await role.edit(name=self.role_name.value, reason=f"Game role updated")
+            except discord.Forbidden:
+                pass 
+
+        events_data["permanent_roles"][self.perm_id].update({
+            "name": self.role_name.value,
+            "description": self.description.value,
+            "emoji": chosen_emoji
+        })
         
+        config.save_events(events_data)
+        await interaction.response.send_message(f"[BAKUSHIN] Game role '{self.role_name.value}' successfully updated!", ephemeral=True)
         await update_boards(self.bot, interaction.guild.id)
 
 
-# --- USER ASSIGNMENT VIEW ---
+# ==========================================
+# 3. INTERACTIVE DROPDOWNS & VIEWS
+# ==========================================
 class AssignUserSelectView(discord.ui.View):
     def __init__(self, role: discord.Role):
         super().__init__(timeout=120)
@@ -256,18 +238,16 @@ class AssignUserSelectView(discord.ui.View):
         names = ", ".join(added) if added else "None"
         await interaction.response.send_message(f"Assigned {self.role.mention} to: {names}", ephemeral=True)
 
-
-# --- EVENT HUB VIEWS (/event) ---
 class EventManageSelect(discord.ui.Select):
-    def __init__(self, guild_events: dict):
+    def __init__(self, guild_events: dict, row: int = 0):
         options = []
         for ev_id, ev in guild_events.items():
             options.append(discord.SelectOption(
-                label=ev["name"][:100],
+                label=f"Cancel: {ev['name']}"[:100],
                 value=ev_id,
-                description=f"Role: @{ev['role_name']}"[:100]
+                description=f"Deletes event & removes Discord role"[:100]
             ))
-        super().__init__(placeholder="Select an active event to cancel or delete", options=options)
+        super().__init__(placeholder="Select an active event to cancel & delete", options=options[:25], row=row)
 
     async def callback(self, interaction: discord.Interaction):
         event_id = self.values[0]
@@ -290,19 +270,42 @@ class EventManageSelect(discord.ui.Select):
         await interaction.response.send_message(f"[BAKUSHIN] Event '{ev['name']}' canceled and the role was removed.", ephemeral=True)
         await update_boards(interaction.client, interaction.guild.id)
 
+class GameRoleManageSelect(discord.ui.Select):
+    def __init__(self, guild_game_roles: dict, row: int = 1):
+        options = []
+        for pr_id, pr in guild_game_roles.items():
+            desc = pr.get("description", "No description")
+            options.append(discord.SelectOption(
+                label=f"Remove: {pr['name']}"[:100],
+                value=pr_id,
+                description=f"{desc}"[:100]
+            ))
+        super().__init__(placeholder="Select a game role to remove from the board", options=options[:25], row=row)
+
+    async def callback(self, interaction: discord.Interaction):
+        perm_id = self.values[0]
+        events_data = config.load_events()
+        pr = events_data.get("permanent_roles", {}).get(perm_id)
+        if not pr:
+            await interaction.response.send_message("Game role not found or already removed.", ephemeral=True)
+            return
+
+        del events_data["permanent_roles"][perm_id]
+        config.save_events(events_data)
+        
+        await interaction.response.send_message(
+            f"[BAKUSHIN] Game role '{pr['name']}' removed from the board. (The Discord role still exists in your server settings!)",
+            ephemeral=True
+        )
+        await update_boards(interaction.client, interaction.guild.id)
 
 class EventEditSelect(discord.ui.Select):
     def __init__(self, bot: commands.Bot, guild_events: dict):
         self.bot = bot
         options = []
         for ev_id, ev in guild_events.items():
-            dt_str = datetime.datetime.fromtimestamp(ev["end_time"], tz=datetime.timezone.utc).strftime('%Y-%m-%d %H:%M')
-            options.append(discord.SelectOption(
-                label=ev["name"][:100],
-                value=ev_id,
-                description=f"Ends: {dt_str} UTC"[:100]
-            ))
-        super().__init__(placeholder="Select an active event to edit", options=options)
+            options.append(discord.SelectOption(label=ev["name"][:100], value=ev_id))
+        super().__init__(placeholder="Select an active event to edit", options=options[:25])
 
     async def callback(self, interaction: discord.Interaction):
         event_id = self.values[0]
@@ -311,49 +314,81 @@ class EventEditSelect(discord.ui.Select):
         if not ev:
             await interaction.response.send_message("Event not found or already ended.", ephemeral=True)
             return
-
         await interaction.response.send_modal(EditEventModal(self.bot, event_id, ev))
 
+class GameRoleEditSelect(discord.ui.Select):
+    def __init__(self, bot: commands.Bot, guild_game_roles: dict):
+        self.bot = bot
+        options = []
+        for pr_id, pr in guild_game_roles.items():
+            desc = pr.get("description", "No description")
+            options.append(discord.SelectOption(
+                label=f"Edit: {pr['name']}"[:100], 
+                value=pr_id,
+                description=f"{desc}"[:100]
+            ))
+        super().__init__(placeholder="Select a game role to edit", options=options[:25])
+
+    async def callback(self, interaction: discord.Interaction):
+        perm_id = self.values[0]
+        events_data = config.load_events()
+        pr = events_data.get("permanent_roles", {}).get(perm_id)
+        if not pr:
+            await interaction.response.send_message("Role not found.", ephemeral=True)
+            return
+        await interaction.response.send_modal(EditGameRoleModal(self.bot, perm_id, pr))
 
 class EventEditSelectView(discord.ui.View):
     def __init__(self, bot: commands.Bot, guild_events: dict):
         super().__init__(timeout=120)
         self.add_item(EventEditSelect(bot, guild_events))
 
+class GameRoleEditSelectView(discord.ui.View):
+    def __init__(self, bot: commands.Bot, guild_game_roles: dict):
+        super().__init__(timeout=120)
+        self.add_item(GameRoleEditSelect(bot, guild_game_roles))
 
 class EventHubView(discord.ui.View):
-    def __init__(self, bot: commands.Bot, guild: discord.Guild, guild_events: dict):
+    def __init__(self, bot: commands.Bot, guild: discord.Guild, guild_events: dict, guild_game_roles: dict):
         super().__init__(timeout=180)
         self.bot = bot
         self.guild = guild
+        
         if guild_events:
-            self.add_item(EventManageSelect(guild_events))
+            self.add_item(EventManageSelect(guild_events, row=0))
+            
+        if guild_game_roles:
+            self.add_item(GameRoleManageSelect(guild_game_roles, row=1))
 
-    @discord.ui.button(label="Create Event", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Create Event", style=discord.ButtonStyle.primary, row=2)
     async def create_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(CreateEventModal(self.bot))
 
-    @discord.ui.button(label="Edit Event", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Edit Event", style=discord.ButtonStyle.secondary, row=2)
     async def edit_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         events_data = config.load_events()
         guild_id = str(self.guild.id)
         guild_events = {k: v for k, v in events_data.get("events", {}).items() if str(v.get("guild_id")) == guild_id}
-        
         if not guild_events:
             await interaction.response.send_message("There are no active temporary events to edit.", ephemeral=True)
             return
-        
-        await interaction.response.send_message(
-            "Select the event you wish to edit:",
-            view=EventEditSelectView(self.bot, guild_events),
-            ephemeral=True
-        )
+        await interaction.response.send_message("Select the event you wish to edit:", view=EventEditSelectView(self.bot, guild_events), ephemeral=True)
 
-    @discord.ui.button(label="Add Permanent Role", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Add Game Role", style=discord.ButtonStyle.success, row=3)
     async def perm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(CreatePermanentRoleModal(self.bot))
 
-    @discord.ui.button(label="Assign Members", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Edit Game Role", style=discord.ButtonStyle.secondary, row=3)
+    async def edit_perm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        events_data = config.load_events()
+        guild_id = str(self.guild.id)
+        guild_game_roles = {k: v for k, v in events_data.get("permanent_roles", {}).items() if str(v.get("guild_id")) == guild_id}
+        if not guild_game_roles:
+            await interaction.response.send_message("There are no active game roles to edit.", ephemeral=True)
+            return
+        await interaction.response.send_message("Select the game role you wish to edit:", view=GameRoleEditSelectView(self.bot, guild_game_roles), ephemeral=True)
+
+    @discord.ui.button(label="Assign Members", style=discord.ButtonStyle.secondary, row=4)
     async def assign_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         events_data = config.load_events()
         guild_id = str(self.guild.id)
@@ -361,24 +396,24 @@ class EventHubView(discord.ui.View):
         if not events:
             await interaction.response.send_message("There are no active temporary event roles to assign.", ephemeral=True)
             return
-        
         target_role = self.guild.get_role(events[0]["role_id"])
         if not target_role:
             await interaction.response.send_message("Role not found on server.", ephemeral=True)
             return
-
         await interaction.response.send_message(
             f"Select members to assign to **{events[0]['name']}** ({target_role.mention}):",
             view=AssignUserSelectView(target_role),
             ephemeral=True
         )
 
-    @discord.ui.button(label="Close Menu", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="Close Menu", style=discord.ButtonStyle.danger, row=4)
     async def close_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(content="Class President Event Menu closed.", embed=None, view=None)
 
 
-# --- EMBED MODALS ---
+# ==========================================
+# 4. CUSTOM EMBED MODALS
+# ==========================================
 class EmbedBuilderModal(discord.ui.Modal, title='Bakushin Custom Embed Builder'):
     embed_title = discord.ui.TextInput(label='Embed Title', style=discord.TextStyle.short, required=False)
     embed_desc = discord.ui.TextInput(label='Description', style=discord.TextStyle.paragraph, required=False, max_length=4000)
@@ -389,12 +424,9 @@ class EmbedBuilderModal(discord.ui.Modal, title='Bakushin Custom Embed Builder')
         if not self.embed_title.value and not self.embed_desc.value and not self.image_url.value:
             await interaction.response.send_message("You must provide at least a Title, Description, or Image!", ephemeral=True)
             return
-
         color_str = self.embed_color.value.replace("#", "") if self.embed_color.value else "FF77AA"
-        try:
-            color_val = int(color_str, 16)
-        except ValueError:
-            color_val = 0xFF77AA 
+        try: color_val = int(color_str, 16)
+        except ValueError: color_val = 0xFF77AA 
 
         embed = discord.Embed(
             title=self.embed_title.value if self.embed_title.value else None,
@@ -415,13 +447,10 @@ class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
         
         self.embed_title = discord.ui.TextInput(label='Embed Title', style=discord.TextStyle.short, default=embed.title if embed and embed.title else '', required=False)
         self.add_item(self.embed_title)
-
         self.embed_desc = discord.ui.TextInput(label='Description', style=discord.TextStyle.paragraph, default=embed.description if embed and embed.description else '', required=False, max_length=4000)
         self.add_item(self.embed_desc)
-
         self.image_url = discord.ui.TextInput(label='Image URL (Optional)', style=discord.TextStyle.short, default=embed.image.url if embed and embed.image else '', required=False)
         self.add_item(self.image_url)
-
         hex_color = hex(embed.color.value).replace('0x', '').upper() if embed and embed.color else 'FF77AA'
         self.embed_color = discord.ui.TextInput(label='Hex Color (Optional)', style=discord.TextStyle.short, default=hex_color, required=False)
         self.add_item(self.embed_color)
@@ -430,12 +459,9 @@ class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
         if not self.embed_title.value and not self.embed_desc.value and not self.image_url.value:
             await interaction.response.send_message("You must provide at least a Title, Description, or Image!", ephemeral=True)
             return
-
         color_str = self.embed_color.value.replace("#", "") if self.embed_color.value else "FF77AA"
-        try:
-            color_val = int(color_str, 16)
-        except ValueError:
-            color_val = 0xFF77AA
+        try: color_val = int(color_str, 16)
+        except ValueError: color_val = 0xFF77AA
 
         new_embed = discord.Embed(
             title=self.embed_title.value if self.embed_title.value else None,
@@ -449,7 +475,9 @@ class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
         await interaction.response.send_message("[BAKUSHIN] The embed has been successfully updated!", ephemeral=True)
 
 
-# --- COG IMPLEMENTATION ---
+# ==========================================
+# 5. MAIN COG IMPLEMENTATION
+# ==========================================
 class BakushinCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -465,20 +493,15 @@ class BakushinCommands(commands.Cog):
         
         is_event_board = (guild_boards.get("event", {}).get("message_id") == payload.message_id)
         is_game_board = (guild_boards.get("game", {}).get("message_id") == payload.message_id)
-        
         if not is_event_board and not is_game_board:
             return
 
         guild = self.bot.get_guild(payload.guild_id)
-        if not guild:
-            return
-
+        if not guild: return
         member = payload.member
         if not member:
-            try:
-                member = await guild.fetch_member(payload.user_id)
-            except Exception:
-                return
+            try: member = await guild.fetch_member(payload.user_id)
+            except Exception: return
 
         emoji_str = str(payload.emoji)
         role_id = None
@@ -512,18 +535,13 @@ class BakushinCommands(commands.Cog):
         
         is_event_board = (guild_boards.get("event", {}).get("message_id") == payload.message_id)
         is_game_board = (guild_boards.get("game", {}).get("message_id") == payload.message_id)
-        
         if not is_event_board and not is_game_board:
             return
 
         guild = self.bot.get_guild(payload.guild_id)
-        if not guild:
-            return
-
-        try:
-            member = guild.get_member(payload.user_id) or await guild.fetch_member(payload.user_id)
-        except Exception:
-            return
+        if not guild: return
+        try: member = guild.get_member(payload.user_id) or await guild.fetch_member(payload.user_id)
+        except Exception: return
 
         emoji_str = str(payload.emoji)
         role_id = None
@@ -553,33 +571,29 @@ class BakushinCommands(commands.Cog):
     @app_commands.describe(role="The existing server role", event_name="Name of the event", end_time="UTC time or duration (e.g., 2h)", emoji="Optional reaction emoji")
     async def link_event_role(self, interaction: discord.Interaction, role: discord.Role, event_name: str, end_time: str, emoji: str = None):
         await interaction.response.defer(ephemeral=True)
-        
-        try:
-            end_ts = parse_time_input(end_time)
+        try: end_ts = parse_time_input(end_time)
         except ValueError as err:
             await interaction.followup.send(f"[Error] {err}", ephemeral=True)
             return
 
         events_data = config.load_events()
-        chosen_emoji = get_available_emoji(interaction.guild.id, events_data, emoji)
+        
+        # PREVENT DUPLICATES
+        for ev in events_data.get("events", {}).values():
+            if str(ev.get("guild_id")) == str(interaction.guild.id) and ev.get("role_id") == role.id:
+                await interaction.followup.send("[Error] That role is already linked to the event board! Use `/event` to edit it.", ephemeral=True)
+                return
 
+        chosen_emoji = get_available_emoji(interaction.guild.id, events_data, emoji)
         event_id = str(uuid.uuid4())[:8]
         events_data.setdefault("events", {})[event_id] = {
-            "name": event_name,
-            "role_name": role.name,
-            "role_id": role.id,
-            "guild_id": interaction.guild.id,
-            "end_time": end_ts,
-            "emoji": chosen_emoji
+            "name": event_name, "role_name": role.name, "role_id": role.id,
+            "guild_id": interaction.guild.id, "end_time": end_ts, "emoji": chosen_emoji
         }
         config.save_events(events_data)
-        
         await interaction.followup.send(
             f"[BAKUSHIN] Existing role successfully linked to an event!\n"
-            f"- Event: **{event_name}**\n"
-            f"- Role: {role.mention}\n"
-            f"- Reaction: {chosen_emoji}\n"
-            f"- Ends: <t:{end_ts}:F> (<t:{end_ts}:R>)",
+            f"- Event: **{event_name}**\n- Role: {role.mention}\n- Reaction: {chosen_emoji}\n- Ends: <t:{end_ts}:F>",
             ephemeral=True
         )
         await update_boards(self.bot, interaction.guild.id)
@@ -590,28 +604,26 @@ class BakushinCommands(commands.Cog):
     @app_commands.describe(role="The existing server role", description="Short description of the game", emoji="Optional reaction emoji")
     async def link_game_role(self, interaction: discord.Interaction, role: discord.Role, description: str = None, emoji: str = None):
         await interaction.response.defer(ephemeral=True)
-        
         events_data = config.load_events()
-        chosen_emoji = get_available_emoji(interaction.guild.id, events_data, emoji)
+        
+        # PREVENT DUPLICATES
+        for pr in events_data.get("permanent_roles", {}).values():
+            if str(pr.get("guild_id")) == str(interaction.guild.id) and pr.get("role_id") == role.id:
+                await interaction.followup.send("[Error] That role is already linked to the game board! Use `/event` to edit it.", ephemeral=True)
+                return
 
+        chosen_emoji = get_available_emoji(interaction.guild.id, events_data, emoji)
         perm_id = str(uuid.uuid4())[:8]
         events_data.setdefault("permanent_roles", {})[perm_id] = {
-            "name": role.name,
-            "role_id": role.id,
-            "guild_id": interaction.guild.id,
-            "description": description or "Game notification role",
-            "emoji": chosen_emoji
+            "name": role.name, "role_id": role.id, "guild_id": interaction.guild.id,
+            "description": description or "Game notification role", "emoji": chosen_emoji
         }
         config.save_events(events_data)
-        
         await interaction.followup.send(
-            f"[BAKUSHIN] Existing role successfully linked to the game board!\n"
-            f"- Role: {role.mention}\n"
-            f"- Reaction: {chosen_emoji}",
+            f"[BAKUSHIN] Existing role successfully linked to the game board!\n- Role: {role.mention}\n- Reaction: {chosen_emoji}",
             ephemeral=True
         )
         await update_boards(self.bot, interaction.guild.id)
-
 
     # --- GENERAL COMMANDS ---
     @app_commands.command(name="event", description="View, create, or manage community events and roles")
@@ -620,55 +632,51 @@ class BakushinCommands(commands.Cog):
         events_data = config.load_events()
         guild_id = str(interaction.guild.id)
         
-        guild_events = {
-            k: v for k, v in events_data.get("events", {}).items() 
-            if str(v.get("guild_id")) == guild_id
-        }
+        guild_events = {k: v for k, v in events_data.get("events", {}).items() if str(v.get("guild_id")) == guild_id}
+        guild_game_roles = {k: v for k, v in events_data.get("permanent_roles", {}).items() if str(v.get("guild_id")) == guild_id}
 
+        embed = discord.Embed(
+            title="Class President Hub",
+            description="Manage your active Events and Gaming Roles below.",
+            color=0xFF77AA
+        )
+        
         if not guild_events:
-            embed = discord.Embed(
-                title="Class President Event Operations",
-                description="Class President Announcement: There are currently no active events scheduled! Forward, forward, forward! Keep your spirit sharp for the next starting gate!",
-                color=0xFF77AA
-            )
+            embed.add_field(name="Active Events", value="No active events scheduled.", inline=False)
         else:
-            embed = discord.Embed(
-                title="Current Active Community Events",
-                description="Review current running events, their target roles, and scheduled completion times below.",
-                color=0xFF77AA
-            )
+            lines = []
             for ev_id, ev in guild_events.items():
                 role = interaction.guild.get_role(ev["role_id"])
                 role_str = role.mention if role else f"@{ev['role_name']}"
-                emoji_str = ev.get("emoji", "🟠")
-                embed.add_field(
-                    name=ev["name"],
-                    value=f"Reaction: {emoji_str}\nRole: {role_str}\nEnds: <t:{ev['end_time']}:F> (<t:{ev['end_time']}:R>)",
-                    inline=False
-                )
+                lines.append(f"{ev.get('emoji', '🟠')} **{ev['name']}** ({role_str}) - Ends <t:{ev['end_time']}:R>")
+            embed.add_field(name="Active Events", value="\n".join(lines), inline=False)
 
-        view = EventHubView(self.bot, interaction.guild, guild_events)
+        if not guild_game_roles:
+            embed.add_field(name="Gaming Roles", value="No permanent game roles added.", inline=False)
+        else:
+            lines = []
+            for pr_id, pr in guild_game_roles.items():
+                role = interaction.guild.get_role(pr["role_id"])
+                role_str = role.mention if role else f"@{pr['name']}"
+                lines.append(f"{pr.get('emoji', '⚪')} **{pr['name']}** ({role_str})")
+            embed.add_field(name="Gaming Roles", value="\n".join(lines), inline=False)
+
+        view = EventHubView(self.bot, interaction.guild, guild_events, guild_game_roles)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @app_commands.command(name="setup-boards", description="Deploy the live role assignment boards")
     @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(
-        event_channel="Channel for the Active Events board",
-        game_channel="Channel for the Gaming Roles board"
-    )
+    @app_commands.describe(event_channel="Channel for the Active Events board", game_channel="Channel for the Gaming Roles board")
     async def setup_boards(self, interaction: discord.Interaction, event_channel: discord.TextChannel = None, game_channel: discord.TextChannel = None):
         if not event_channel and not game_channel:
             await interaction.response.send_message("You must select at least one channel to setup a board!", ephemeral=True)
             return
 
-        # Defer the interaction immediately to prevent the 3-second 404 timeout
         await interaction.response.defer(ephemeral=True)
-
         try:
             events_data = config.load_events()
             guild_id_str = str(interaction.guild.id)
             boards = events_data.setdefault("boards", {}).setdefault(guild_id_str, {})
-            
             reply_text = "[BAKUSHIN] Boards deployed!\n"
 
             if event_channel:
@@ -684,11 +692,7 @@ class BakushinCommands(commands.Cog):
                 reply_text += f"- Game Board placed in {game_channel.mention}\n"
 
             config.save_events(events_data)
-            
-            # Send the success message FIRST so it doesn't get stuck on "Thinking..."
             await interaction.followup.send(reply_text, ephemeral=True)
-            
-            # THEN silently update the boards and process all the emojis in the background
             await update_boards(self.bot, interaction.guild.id)
             
         except Exception as e:
@@ -722,9 +726,7 @@ class BakushinCommands(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if not message.webhook_id:
-            return
-            
+        if not message.webhook_id: return
         if message.content:
             try:
                 raw_parts = message.content.split(" ::: ", 1)
@@ -732,8 +734,7 @@ class BakushinCommands(commands.Cog):
                 msg_text = raw_parts[1] if len(raw_parts) > 1 else None
                 msg_embed = message.embeds[0] if message.embeds else None
 
-                if not msg_text and not msg_embed:
-                    return
+                if not msg_text and not msg_embed: return
 
                 if routing_args[0] == "EDIT" and len(routing_args) == 3:
                     channel_id = int(routing_args[1])
@@ -758,12 +759,9 @@ class BakushinCommands(commands.Cog):
                         raise ValueError(f"Could not find target channel <{channel_id}>.")
                         
             except Exception as e:
-                if isinstance(e, discord.Forbidden):
-                    reason = "403 Forbidden: Missing permissions in Target Channel or Manage Messages in Relay Channel."
-                elif isinstance(e, discord.NotFound):
-                    reason = "404 Not Found: Could not find Message ID to edit."
-                else:
-                    reason = str(e)
+                if isinstance(e, discord.Forbidden): reason = "403 Forbidden: Missing permissions in Target Channel or Manage Messages in Relay Channel."
+                elif isinstance(e, discord.NotFound): reason = "404 Not Found: Could not find Message ID to edit."
+                else: reason = str(e)
 
                 log_sent = False
                 conf = config.load_config()
@@ -811,8 +809,7 @@ class BakushinCommands(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     @app_commands.describe(message_id="The ID of the message you want to edit")
     async def edit_embed(self, interaction: discord.Interaction, message_id: str):
-        try:
-            message = await interaction.channel.fetch_message(int(message_id))
+        try: message = await interaction.channel.fetch_message(int(message_id))
         except discord.NotFound:
             await interaction.response.send_message("I couldn't find a message with that ID in this channel!", ephemeral=True)
             return
@@ -852,21 +849,16 @@ async def setup(bot):
                 line_num = last_call.lineno
                 file_name = last_call.filename.split('/')[-1]
 
-        if isinstance(original_error, discord.errors.Forbidden):
-            reason = "403 / No Perms (Missing Permissions)"
-        elif isinstance(original_error, discord.errors.NotFound):
-            reason = "404 / Not Found"
-        else:
-            reason = str(original_error)
+        if isinstance(original_error, discord.errors.Forbidden): reason = "403 / No Perms (Missing Permissions)"
+        elif isinstance(original_error, discord.errors.NotFound): reason = "404 / Not Found"
+        else: reason = str(original_error)
 
         cmd_name = interaction.command.name if interaction.command else 'Unknown'
         log_text = f"**Command:** `/{cmd_name}`\n**File:** `{file_name}`\n**Line:** `{line_num}`\n**Reason:** `{reason}`"
 
         if not interaction.response.is_done():
-            try:
-                await interaction.response.send_message("A system error occurred. The Class President is looking into it!", ephemeral=True)
-            except Exception:
-                pass
+            try: await interaction.response.send_message("A system error occurred. The Class President is looking into it!", ephemeral=True)
+            except Exception: pass
 
         conf = config.load_config()
         log_channel_id = conf.get("global_log_channel")
