@@ -10,7 +10,7 @@ from utils import (
     build_embed, 
     parse_time_input, 
     get_available_emoji,
-    build_event_board_embed, 
+    build_event_board_embeds,
     update_event_board
 )
 from quotes import get_quote
@@ -565,15 +565,18 @@ class BakushinCommands(commands.Cog):
 
         view = EventHubView(self.bot, interaction.guild, guild_events)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
+        
     @app_commands.command(name="setup-event-board", description="Deploy the live auto-updating event role assignment board")
     @app_commands.default_permissions(administrator=True)
     @app_commands.describe(channel="Channel where the role self-assign board will live")
     async def setup_event_board_cmd(self, interaction: discord.Interaction, channel: discord.TextChannel):
         events_data = config.load_events()
-        embed = build_event_board_embed(interaction.guild, events_data)
+        
+        # Now returns a list of embeds
+        embed_list = build_event_board_embeds(interaction.guild, events_data)
 
-        board_msg = await channel.send(embed=embed)
+        # Send the list of embeds to the channel
+        board_msg = await channel.send(embeds=embed_list)
 
         events_data.setdefault("boards", {})[str(interaction.guild.id)] = {
             "channel_id": channel.id,
@@ -583,10 +586,9 @@ class BakushinCommands(commands.Cog):
         await update_event_board(self.bot, interaction.guild.id)
 
         await interaction.response.send_message(
-            f"[BAKUSHIN] Event role board deployed in {channel.mention}! Members can react directly to get roles.",
+            f"[BAKUSHIN] Event role boards deployed in {channel.mention}! Members can react directly to get roles.",
             ephemeral=True
         )
-
     @app_commands.command(name="setup", description="Setup reminder channels and roles")
     @app_commands.default_permissions(administrator=True)
     @app_commands.describe(channel="Reminder channel", global_role="Global reminder role", jp_role="JP reminder role")
