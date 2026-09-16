@@ -3,7 +3,7 @@ from discord.ext import tasks, commands
 import datetime
 import config
 from quotes import get_quote
-from utils import build_embed, get_next_timestamp, update_event_board, UTC, JST
+from utils import build_embed, get_next_timestamp, update_boards, UTC, JST
 
 class BakushinTasks(commands.Cog):
     def __init__(self, bot):
@@ -98,7 +98,7 @@ class BakushinTasks(commands.Cog):
         if dirty:
             config.save_events(events_data)
             for guild_id in affected_guilds:
-                await update_event_board(self.bot, guild_id)
+                await update_boards(self.bot, guild_id)
 
     # --- GLOBAL TASKS (UTC) ---
     @tasks.loop(time=datetime.time(hour=13, minute=0, tzinfo=UTC))
