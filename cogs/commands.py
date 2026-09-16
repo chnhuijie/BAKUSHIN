@@ -86,8 +86,7 @@ class CreateEventModal(discord.ui.Modal, title="Create New Event"):
             "emoji": chosen_emoji
         }
         config.save_events(events_data)
-        await update_boards(self.bot, interaction.guild.id)
-
+        
         await interaction.response.send_message(
             f"[BAKUSHIN] Event created!\n"
             f"- Event: **{self.event_name.value}**\n"
@@ -97,6 +96,10 @@ class CreateEventModal(discord.ui.Modal, title="Create New Event"):
             f"The role will be automatically deleted when the event concludes.",
             ephemeral=True
         )
+        
+        # Update boards in background
+        await update_boards(self.bot, interaction.guild.id)
+
 
 class EditEventModal(discord.ui.Modal):
     def __init__(self, bot: commands.Bot, event_id: str, current_data: dict):
@@ -163,9 +166,10 @@ class EditEventModal(discord.ui.Modal):
         })
         
         config.save_events(events_data)
-        await update_boards(self.bot, interaction.guild.id)
         
         await interaction.response.send_message(f"[BAKUSHIN] Event '{self.event_name.value}' has been successfully updated!", ephemeral=True)
+        await update_boards(self.bot, interaction.guild.id)
+
 
 class CreatePermanentRoleModal(discord.ui.Modal, title="Create Permanent Game Role"):
     def __init__(self, bot: commands.Bot):
@@ -224,8 +228,7 @@ class CreatePermanentRoleModal(discord.ui.Modal, title="Create Permanent Game Ro
             "emoji": chosen_emoji
         }
         config.save_events(events_data)
-        await update_boards(self.bot, interaction.guild.id)
-
+        
         await interaction.response.send_message(
             f"[BAKUSHIN] Permanent role created!\n"
             f"- Role: {new_role.mention}\n"
@@ -233,6 +236,9 @@ class CreatePermanentRoleModal(discord.ui.Modal, title="Create Permanent Game Ro
             f"- Use: React on the role board to assign or remove this role.",
             ephemeral=True
         )
+        
+        await update_boards(self.bot, interaction.guild.id)
+
 
 # --- USER ASSIGNMENT VIEW ---
 class AssignUserSelectView(discord.ui.View):
@@ -249,6 +255,7 @@ class AssignUserSelectView(discord.ui.View):
                 added.append(member.display_name)
         names = ", ".join(added) if added else "None"
         await interaction.response.send_message(f"Assigned {self.role.mention} to: {names}", ephemeral=True)
+
 
 # --- EVENT HUB VIEWS (/event) ---
 class EventManageSelect(discord.ui.Select):
@@ -280,11 +287,9 @@ class EventManageSelect(discord.ui.Select):
             except discord.Forbidden:
                 pass
 
+        await interaction.response.send_message(f"[BAKUSHIN] Event '{ev['name']}' canceled and the role was removed.", ephemeral=True)
         await update_boards(interaction.client, interaction.guild.id)
-        await interaction.response.send_message(
-            f"[BAKUSHIN] Event '{ev['name']}' canceled and the role was removed.",
-            ephemeral=True
-        )
+
 
 class EventEditSelect(discord.ui.Select):
     def __init__(self, bot: commands.Bot, guild_events: dict):
@@ -309,10 +314,12 @@ class EventEditSelect(discord.ui.Select):
 
         await interaction.response.send_modal(EditEventModal(self.bot, event_id, ev))
 
+
 class EventEditSelectView(discord.ui.View):
     def __init__(self, bot: commands.Bot, guild_events: dict):
         super().__init__(timeout=120)
         self.add_item(EventEditSelect(bot, guild_events))
+
 
 class EventHubView(discord.ui.View):
     def __init__(self, bot: commands.Bot, guild: discord.Guild, guild_events: dict):
@@ -369,6 +376,7 @@ class EventHubView(discord.ui.View):
     @discord.ui.button(label="Close Menu", style=discord.ButtonStyle.danger)
     async def close_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(content="Class President Event Menu closed.", embed=None, view=None)
+
 
 # --- EMBED MODALS ---
 class EmbedBuilderModal(discord.ui.Modal, title='Bakushin Custom Embed Builder'):
@@ -439,6 +447,7 @@ class EmbedEditModal(discord.ui.Modal, title='Edit Bakushin Embed'):
 
         await self.message.edit(embed=new_embed)
         await interaction.response.send_message("[BAKUSHIN] The embed has been successfully updated!", ephemeral=True)
+
 
 # --- COG IMPLEMENTATION ---
 class BakushinCommands(commands.Cog):
@@ -538,6 +547,73 @@ class BakushinCommands(commands.Cog):
                 except discord.Forbidden:
                     print(f"Forbidden: Cannot remove role {role_id} from {member.id}")
 
+    # --- EXISTING ROLES SLASH COMMANDS ---
+    @app_commands.command(name="link-event-role", description="Link an EXISTING server role to the temporary events board")
+    @app_commands.default_permissions(manage_roles=True)
+    @app_commands.describe(role="The existing server role", event_name="Name of the event", end_time="UTC time or duration (e.g., 2h)", emoji="Optional reaction emoji")
+    async def link_event_role(self, interaction: discord.Interaction, role: discord.Role, event_name: str, end_time: str, emoji: str = None):
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            end_ts = parse_time_input(end_time)
+        except ValueError as err:
+            await interaction.followup.send(f"[Error] {err}", ephemeral=True)
+            return
+
+        events_data = config.load_events()
+        chosen_emoji = get_available_emoji(interaction.guild.id, events_data, emoji)
+
+        event_id = str(uuid.uuid4())[:8]
+        events_data.setdefault("events", {})[event_id] = {
+            "name": event_name,
+            "role_name": role.name,
+            "role_id": role.id,
+            "guild_id": interaction.guild.id,
+            "end_time": end_ts,
+            "emoji": chosen_emoji
+        }
+        config.save_events(events_data)
+        
+        await interaction.followup.send(
+            f"[BAKUSHIN] Existing role successfully linked to an event!\n"
+            f"- Event: **{event_name}**\n"
+            f"- Role: {role.mention}\n"
+            f"- Reaction: {chosen_emoji}\n"
+            f"- Ends: <t:{end_ts}:F> (<t:{end_ts}:R>)",
+            ephemeral=True
+        )
+        await update_boards(self.bot, interaction.guild.id)
+
+
+    @app_commands.command(name="link-game-role", description="Link an EXISTING server role to the permanent gaming board")
+    @app_commands.default_permissions(manage_roles=True)
+    @app_commands.describe(role="The existing server role", description="Short description of the game", emoji="Optional reaction emoji")
+    async def link_game_role(self, interaction: discord.Interaction, role: discord.Role, description: str = None, emoji: str = None):
+        await interaction.response.defer(ephemeral=True)
+        
+        events_data = config.load_events()
+        chosen_emoji = get_available_emoji(interaction.guild.id, events_data, emoji)
+
+        perm_id = str(uuid.uuid4())[:8]
+        events_data.setdefault("permanent_roles", {})[perm_id] = {
+            "name": role.name,
+            "role_id": role.id,
+            "guild_id": interaction.guild.id,
+            "description": description or "Game notification role",
+            "emoji": chosen_emoji
+        }
+        config.save_events(events_data)
+        
+        await interaction.followup.send(
+            f"[BAKUSHIN] Existing role successfully linked to the game board!\n"
+            f"- Role: {role.mention}\n"
+            f"- Reaction: {chosen_emoji}",
+            ephemeral=True
+        )
+        await update_boards(self.bot, interaction.guild.id)
+
+
+    # --- GENERAL COMMANDS ---
     @app_commands.command(name="event", description="View, create, or manage community events and roles")
     @app_commands.default_permissions(manage_roles=True)
     async def event_command(self, interaction: discord.Interaction):
@@ -585,30 +661,39 @@ class BakushinCommands(commands.Cog):
             await interaction.response.send_message("You must select at least one channel to setup a board!", ephemeral=True)
             return
 
+        # Defer the interaction immediately to prevent the 3-second 404 timeout
         await interaction.response.defer(ephemeral=True)
 
-        events_data = config.load_events()
-        guild_id_str = str(interaction.guild.id)
-        boards = events_data.setdefault("boards", {}).setdefault(guild_id_str, {})
-        
-        reply_text = "[BAKUSHIN] Boards deployed!\n"
+        try:
+            events_data = config.load_events()
+            guild_id_str = str(interaction.guild.id)
+            boards = events_data.setdefault("boards", {}).setdefault(guild_id_str, {})
+            
+            reply_text = "[BAKUSHIN] Boards deployed!\n"
 
-        if event_channel:
-            embed = build_event_embed(interaction.guild, events_data)
-            msg = await event_channel.send(embed=embed)
-            boards["event"] = {"channel_id": event_channel.id, "message_id": msg.id}
-            reply_text += f"- Event Board placed in {event_channel.mention}\n"
+            if event_channel:
+                embed = build_event_embed(interaction.guild, events_data)
+                msg = await event_channel.send(embed=embed)
+                boards["event"] = {"channel_id": event_channel.id, "message_id": msg.id}
+                reply_text += f"- Event Board placed in {event_channel.mention}\n"
 
-        if game_channel:
-            embed = build_game_embed(interaction.guild, events_data)
-            msg = await game_channel.send(embed=embed)
-            boards["game"] = {"channel_id": game_channel.id, "message_id": msg.id}
-            reply_text += f"- Game Board placed in {game_channel.mention}\n"
+            if game_channel:
+                embed = build_game_embed(interaction.guild, events_data)
+                msg = await game_channel.send(embed=embed)
+                boards["game"] = {"channel_id": game_channel.id, "message_id": msg.id}
+                reply_text += f"- Game Board placed in {game_channel.mention}\n"
 
-        config.save_events(events_data)
-        await update_boards(self.bot, interaction.guild.id)
-
-        await interaction.response.send_message(reply_text, ephemeral=True)
+            config.save_events(events_data)
+            
+            # Send the success message FIRST so it doesn't get stuck on "Thinking..."
+            await interaction.followup.send(reply_text, ephemeral=True)
+            
+            # THEN silently update the boards and process all the emojis in the background
+            await update_boards(self.bot, interaction.guild.id)
+            
+        except Exception as e:
+            await interaction.followup.send(f"An error occurred while setting up the boards: {e}", ephemeral=True)
+            raise e
 
     @app_commands.command(name="setup", description="Setup reminder channels and roles")
     @app_commands.default_permissions(administrator=True)
