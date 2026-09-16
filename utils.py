@@ -90,99 +90,65 @@ def get_available_emoji(guild_id: int, events_data: dict, preferred: str = None)
             return candidate
     return "🟠"
 
-def build_event_board_embeds(guild: discord.Guild, events_data: dict) -> list[discord.Embed]:
+def build_event_embed(guild: discord.Guild, events_data: dict) -> discord.Embed:
     guild_id = str(guild.id)
     events = [e for e in events_data.get("events", {}).values() if str(e.get("guild_id")) == guild_id]
-    perm_roles = [r for r in events_data.get("permanent_roles", {}).values() if str(r.get("guild_id")) == guild_id]
 
-    embeds = []
-
-    # --- EMBED 1: EVENTS ---
-    event_embed = discord.Embed(
+    embed = discord.Embed(
         title="Event Roles",
         description="Would you like to be pinged for specific server related events?\n\n**React to this message to assign yourself an event role.**",
         color=0xFF77AA
     )
 
     if events:
-        lines = ["**Events**"]
+        lines = []
         for ev in events:
             role = guild.get_role(ev["role_id"])
             role_mention = role.mention if role else f"@{ev['role_name']}"
             emoji = ev.get("emoji", "🟠")
             lines.append(f"| {emoji} - {role_mention} (Ends <t:{ev['end_time']}:R>)")
-        event_embed.add_field(name="\u200b", value="\n".join(lines), inline=False)
+        embed.add_field(name="Active Events", value="\n".join(lines), inline=False)
     else:
-        event_embed.add_field(
-            name="\u200b",
+        embed.add_field(
+            name="Active Events",
             value="Class President Notice: There are currently no active events scheduled! Forward, forward, forward! Keep up your daily training until the next starting bell rings!",
             inline=False
         )
-    embeds.append(event_embed)
 
-    # --- EMBED 2: GAMING ROLES ---
-    game_embed = discord.Embed(
+    embed.set_footer(text="Class President Bakushin - Event Roles")
+    return embed
+
+def build_game_embed(guild: discord.Guild, events_data: dict) -> discord.Embed:
+    guild_id = str(guild.id)
+    perm_roles = [r for r in events_data.get("permanent_roles", {}).values() if str(r.get("guild_id")) == guild_id]
+    
+    embed = discord.Embed(
         title="Gaming Roles",
         description="Would you like to be pinged for specific gaming related events?\n\n**React to this message to assign yourself game specific roles.**",
         color=0xFF77AA
     )
     
     if perm_roles:
-        perm_lines = []
+        lines = []
         for pr in perm_roles:
             role = guild.get_role(pr["role_id"])
             role_mention = role.mention if role else f"@{pr['role_name']}"
             emoji = pr.get("emoji", "⚪")
             desc = f" - {pr['description']}" if pr.get("description") else ""
-            perm_lines.append(f"| {emoji} - {role_mention}{desc}")
-        game_embed.add_field(name="\u200b", value="\n".join(perm_lines), inline=False)
+            lines.append(f"| {emoji} - {role_mention}{desc}")
+        embed.add_field(name="Available Games", value="\n".join(lines), inline=False)
     else:
-        game_embed.add_field(
-            name="\u200b",
+        embed.add_field(
+            name="Available Games",
             value="No gaming roles are currently active.",
             inline=False
         )
     
-    game_embed.set_footer(text="Class President Bakushin - Role Dispatch Center")
-    embeds.append(game_embed)
+    embed.set_footer(text="Class President Bakushin - Gaming Roles")
+    return embed
 
-    return embeds
-
-async def update_event_board(bot: discord.Client, guild_id: int):
-    events_data = config.load_events()
-    board_info = events_data.get("boards", {}).get(str(guild_id))
-    if not board_info:
-        return
-
-    channel = bot.get_channel(board_info["channel_id"])
-    if not channel:
-        try:
-            channel = await bot.fetch_channel(board_info["channel_id"])
-        except Exception:
-            return
-
-    try:
-        message = await channel.fetch_message(board_info["message_id"])
-    except Exception:
-        return
-
-    guild = bot.get_guild(guild_id)
-    if not guild:
-        return
-
-    embeds = build_event_board_embeds(guild, events_data)
-    await message.edit(embeds=embeds, view=None)
-
-    guild_id_str = str(guild_id)
-    events = [e for e in events_data.get("events", {}).values() if str(e.get("guild_id")) == guild_id_str]
-    perm_roles = [r for r in events_data.get("permanent_roles", {}).values() if str(r.get("guild_id")) == guild_id_str]
-    
-    active_emojis = []
-    for item in events + perm_roles:
-        emo = item.get("emoji")
-        if emo and emo not in active_emojis:
-            active_emojis.append(emo)
-
+async def sync_reactions(bot: discord.Client, message: discord.Message, active_emojis: list):
+    """Helper function to clean up old reactions and add new ones."""
     for reaction in message.reactions:
         emoji_str = str(reaction.emoji)
         if emoji_str not in active_emojis and reaction.me:
@@ -209,3 +175,60 @@ async def update_event_board(bot: discord.Client, guild_id: int):
                     await message.add_reaction(emo)
             except Exception as err:
                 print(f"Failed to add reaction {emo}: {err}")
+
+async def update_boards(bot: discord.Client, guild_id: int):
+    events_data = config.load_events()
+    guild_boards = events_data.get("boards", {}).get(str(guild_id), {})
+    guild = bot.get_guild(guild_id)
+    if not guild:
+        return
+
+    guild_id_str = str(guild_id)
+
+    # --- UPDATE EVENT BOARD ---
+    event_board = guild_boards.get("event")
+    if event_board:
+        channel = bot.get_channel(event_board["channel_id"])
+        if not channel:
+            try: channel = await bot.fetch_channel(event_board["channel_id"])
+            except Exception: channel = None
+        
+        if channel:
+            try:
+                message = await channel.fetch_message(event_board["message_id"])
+                embed = build_event_embed(guild, events_data)
+                await message.edit(embed=embed, view=None)
+
+                events = [e for e in events_data.get("events", {}).values() if str(e.get("guild_id")) == guild_id_str]
+                active_emojis = []
+                for ev in events:
+                    if ev.get("emoji") and ev["emoji"] not in active_emojis:
+                        active_emojis.append(ev["emoji"])
+                
+                await sync_reactions(bot, message, active_emojis)
+            except Exception as e:
+                print(f"Failed to update Event board: {e}")
+
+    # --- UPDATE GAME BOARD ---
+    game_board = guild_boards.get("game")
+    if game_board:
+        channel = bot.get_channel(game_board["channel_id"])
+        if not channel:
+            try: channel = await bot.fetch_channel(game_board["channel_id"])
+            except Exception: channel = None
+        
+        if channel:
+            try:
+                message = await channel.fetch_message(game_board["message_id"])
+                embed = build_game_embed(guild, events_data)
+                await message.edit(embed=embed, view=None)
+
+                perm_roles = [r for r in events_data.get("permanent_roles", {}).values() if str(r.get("guild_id")) == guild_id_str]
+                active_emojis = []
+                for pr in perm_roles:
+                    if pr.get("emoji") and pr["emoji"] not in active_emojis:
+                        active_emojis.append(pr["emoji"])
+                
+                await sync_reactions(bot, message, active_emojis)
+            except Exception as e:
+                print(f"Failed to update Game board: {e}")
