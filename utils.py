@@ -90,48 +90,63 @@ def get_available_emoji(guild_id: int, events_data: dict, preferred: str = None)
             return candidate
     return "🟠"
 
-def build_event_board_embed(guild: discord.Guild, events_data: dict) -> discord.Embed:
+def build_event_board_embeds(guild: discord.Guild, events_data: dict) -> list[discord.Embed]:
     guild_id = str(guild.id)
     events = [e for e in events_data.get("events", {}).values() if str(e.get("guild_id")) == guild_id]
     perm_roles = [r for r in events_data.get("permanent_roles", {}).values() if str(r.get("guild_id")) == guild_id]
 
-    embed = discord.Embed(
+    embeds = []
+
+    # --- EMBED 1: EVENTS ---
+    event_embed = discord.Embed(
         title="Event Roles",
         description="Would you like to be pinged for specific server related events?\n\n**React to this message to assign yourself an event role.**",
-        color=0x00A2FF
+        color=0xFF77AA
     )
 
-    lines = []
     if events:
-        lines.append("**Temporary Events**")
+        lines = ["**Events**"]
         for ev in events:
             role = guild.get_role(ev["role_id"])
             role_mention = role.mention if role else f"@{ev['role_name']}"
             emoji = ev.get("emoji", "🟠")
             lines.append(f"| {emoji} - {role_mention} (Ends <t:{ev['end_time']}:R>)")
-
-    if perm_roles:
-        if events:
-            lines.append("")
-        lines.append("**Permanent Roles**")
-        for pr in perm_roles:
-            role = guild.get_role(pr["role_id"])
-            role_mention = role.mention if role else f"@{pr['role_name']}"
-            emoji = pr.get("emoji", "🎮")
-            desc = f" - {pr['description']}" if pr.get("description") else ""
-            lines.append(f"| {emoji} - {role_mention}{desc}")
-
-    if lines:
-        embed.add_field(name="\u200b", value="\n".join(lines), inline=False)
+        event_embed.add_field(name="\u200b", value="\n".join(lines), inline=False)
     else:
-        embed.add_field(
+        event_embed.add_field(
             name="\u200b",
             value="Class President Notice: There are currently no active events scheduled! Forward, forward, forward! Keep up your daily training until the next starting bell rings!",
             inline=False
         )
+    embeds.append(event_embed)
 
-    embed.set_footer(text="Class President Bakushin - Event Roles")
-    return embed
+    # --- EMBED 2: GAMING ROLES ---
+    game_embed = discord.Embed(
+        title="Gaming Roles",
+        description="Would you like to be pinged for specific gaming related events?\n\n**React to this message to assign yourself game specific roles.**",
+        color=0xFF77AA
+    )
+    
+    if perm_roles:
+        perm_lines = []
+        for pr in perm_roles:
+            role = guild.get_role(pr["role_id"])
+            role_mention = role.mention if role else f"@{pr['role_name']}"
+            emoji = pr.get("emoji", "⚪")
+            desc = f" - {pr['description']}" if pr.get("description") else ""
+            perm_lines.append(f"| {emoji} - {role_mention}{desc}")
+        game_embed.add_field(name="\u200b", value="\n".join(perm_lines), inline=False)
+    else:
+        game_embed.add_field(
+            name="\u200b",
+            value="No gaming roles are currently active.",
+            inline=False
+        )
+    
+    game_embed.set_footer(text="Class President Bakushin - Role Dispatch Center")
+    embeds.append(game_embed)
+
+    return embeds
 
 async def update_event_board(bot: discord.Client, guild_id: int):
     events_data = config.load_events()
@@ -155,8 +170,8 @@ async def update_event_board(bot: discord.Client, guild_id: int):
     if not guild:
         return
 
-    embed = build_event_board_embed(guild, events_data)
-    await message.edit(embed=embed, view=None)
+    embeds = build_event_board_embeds(guild, events_data)
+    await message.edit(embeds=embeds, view=None)
 
     guild_id_str = str(guild_id)
     events = [e for e in events_data.get("events", {}).values() if str(e.get("guild_id")) == guild_id_str]
