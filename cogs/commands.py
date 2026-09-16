@@ -10,8 +10,9 @@ from utils import (
     build_embed, 
     parse_time_input, 
     get_available_emoji,
-    build_event_board_embeds,
-    update_event_board
+    build_event_embed,
+    build_game_embed, 
+    update_boards
 )
 from quotes import get_quote
 
@@ -85,7 +86,7 @@ class CreateEventModal(discord.ui.Modal, title="Create New Event"):
             "emoji": chosen_emoji
         }
         config.save_events(events_data)
-        await update_event_board(self.bot, interaction.guild.id)
+        await update_boards(self.bot, interaction.guild.id)
 
         await interaction.response.send_message(
             f"[BAKUSHIN] Event created!\n"
@@ -147,7 +148,6 @@ class EditEventModal(discord.ui.Modal):
 
         chosen_emoji = get_available_emoji(interaction.guild.id, events_data, self.emoji_input.value)
 
-        # Attempt to rename the actual Discord role
         role = interaction.guild.get_role(self.current_data["role_id"])
         if role:
             try:
@@ -163,7 +163,7 @@ class EditEventModal(discord.ui.Modal):
         })
         
         config.save_events(events_data)
-        await update_event_board(self.bot, interaction.guild.id)
+        await update_boards(self.bot, interaction.guild.id)
         
         await interaction.response.send_message(f"[BAKUSHIN] Event '{self.event_name.value}' has been successfully updated!", ephemeral=True)
 
@@ -224,7 +224,7 @@ class CreatePermanentRoleModal(discord.ui.Modal, title="Create Permanent Game Ro
             "emoji": chosen_emoji
         }
         config.save_events(events_data)
-        await update_event_board(self.bot, interaction.guild.id)
+        await update_boards(self.bot, interaction.guild.id)
 
         await interaction.response.send_message(
             f"[BAKUSHIN] Permanent role created!\n"
@@ -280,7 +280,7 @@ class EventManageSelect(discord.ui.Select):
             except discord.Forbidden:
                 pass
 
-        await update_event_board(interaction.client, interaction.guild.id)
+        await update_boards(interaction.client, interaction.guild.id)
         await interaction.response.send_message(
             f"[BAKUSHIN] Event '{ev['name']}' canceled and the role was removed.",
             ephemeral=True
@@ -452,8 +452,12 @@ class BakushinCommands(commands.Cog):
             return
 
         events_data = config.load_events()
-        board_info = events_data.get("boards", {}).get(str(payload.guild_id))
-        if not board_info or payload.message_id != board_info.get("message_id"):
+        guild_boards = events_data.get("boards", {}).get(str(payload.guild_id), {})
+        
+        is_event_board = (guild_boards.get("event", {}).get("message_id") == payload.message_id)
+        is_game_board = (guild_boards.get("game", {}).get("message_id") == payload.message_id)
+        
+        if not is_event_board and not is_game_board:
             return
 
         guild = self.bot.get_guild(payload.guild_id)
@@ -470,12 +474,12 @@ class BakushinCommands(commands.Cog):
         emoji_str = str(payload.emoji)
         role_id = None
 
-        for ev in events_data.get("events", {}).values():
-            if str(ev.get("guild_id")) == str(payload.guild_id) and ev.get("emoji") == emoji_str:
-                role_id = ev.get("role_id")
-                break
-
-        if not role_id:
+        if is_event_board:
+            for ev in events_data.get("events", {}).values():
+                if str(ev.get("guild_id")) == str(payload.guild_id) and ev.get("emoji") == emoji_str:
+                    role_id = ev.get("role_id")
+                    break
+        elif is_game_board:
             for pr in events_data.get("permanent_roles", {}).values():
                 if str(pr.get("guild_id")) == str(payload.guild_id) and pr.get("emoji") == emoji_str:
                     role_id = pr.get("role_id")
@@ -485,7 +489,7 @@ class BakushinCommands(commands.Cog):
             role = guild.get_role(role_id)
             if role and role not in member.roles:
                 try:
-                    await member.add_roles(role, reason="Event role self-assign reaction")
+                    await member.add_roles(role, reason="Role board self-assign reaction")
                 except discord.Forbidden:
                     print(f"Forbidden: Cannot assign role {role_id} to {member.id}")
 
@@ -495,8 +499,12 @@ class BakushinCommands(commands.Cog):
             return
 
         events_data = config.load_events()
-        board_info = events_data.get("boards", {}).get(str(payload.guild_id))
-        if not board_info or payload.message_id != board_info.get("message_id"):
+        guild_boards = events_data.get("boards", {}).get(str(payload.guild_id), {})
+        
+        is_event_board = (guild_boards.get("event", {}).get("message_id") == payload.message_id)
+        is_game_board = (guild_boards.get("game", {}).get("message_id") == payload.message_id)
+        
+        if not is_event_board and not is_game_board:
             return
 
         guild = self.bot.get_guild(payload.guild_id)
@@ -511,12 +519,12 @@ class BakushinCommands(commands.Cog):
         emoji_str = str(payload.emoji)
         role_id = None
 
-        for ev in events_data.get("events", {}).values():
-            if str(ev.get("guild_id")) == str(payload.guild_id) and ev.get("emoji") == emoji_str:
-                role_id = ev.get("role_id")
-                break
-
-        if not role_id:
+        if is_event_board:
+            for ev in events_data.get("events", {}).values():
+                if str(ev.get("guild_id")) == str(payload.guild_id) and ev.get("emoji") == emoji_str:
+                    role_id = ev.get("role_id")
+                    break
+        elif is_game_board:
             for pr in events_data.get("permanent_roles", {}).values():
                 if str(pr.get("guild_id")) == str(payload.guild_id) and pr.get("emoji") == emoji_str:
                     role_id = pr.get("role_id")
@@ -526,7 +534,7 @@ class BakushinCommands(commands.Cog):
             role = guild.get_role(role_id)
             if role and role in member.roles:
                 try:
-                    await member.remove_roles(role, reason="Event role self-remove reaction")
+                    await member.remove_roles(role, reason="Role board self-remove reaction")
                 except discord.Forbidden:
                     print(f"Forbidden: Cannot remove role {role_id} from {member.id}")
 
@@ -565,30 +573,41 @@ class BakushinCommands(commands.Cog):
 
         view = EventHubView(self.bot, interaction.guild, guild_events)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-        
-    @app_commands.command(name="setup-event-board", description="Deploy the live auto-updating event role assignment board")
+
+    @app_commands.command(name="setup-boards", description="Deploy the live role assignment boards")
     @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(channel="Channel where the role self-assign board will live")
-    async def setup_event_board_cmd(self, interaction: discord.Interaction, channel: discord.TextChannel):
+    @app_commands.describe(
+        event_channel="Channel for the Active Events board",
+        game_channel="Channel for the Gaming Roles board"
+    )
+    async def setup_boards(self, interaction: discord.Interaction, event_channel: discord.TextChannel = None, game_channel: discord.TextChannel = None):
+        if not event_channel and not game_channel:
+            await interaction.response.send_message("You must select at least one channel to setup a board!", ephemeral=True)
+            return
+
         events_data = config.load_events()
+        guild_id_str = str(interaction.guild.id)
+        boards = events_data.setdefault("boards", {}).setdefault(guild_id_str, {})
         
-        # Now returns a list of embeds
-        embed_list = build_event_board_embeds(interaction.guild, events_data)
+        reply_text = "[BAKUSHIN] Boards deployed!\n"
 
-        # Send the list of embeds to the channel
-        board_msg = await channel.send(embeds=embed_list)
+        if event_channel:
+            embed = build_event_embed(interaction.guild, events_data)
+            msg = await event_channel.send(embed=embed)
+            boards["event"] = {"channel_id": event_channel.id, "message_id": msg.id}
+            reply_text += f"- Event Board placed in {event_channel.mention}\n"
 
-        events_data.setdefault("boards", {})[str(interaction.guild.id)] = {
-            "channel_id": channel.id,
-            "message_id": board_msg.id
-        }
+        if game_channel:
+            embed = build_game_embed(interaction.guild, events_data)
+            msg = await game_channel.send(embed=embed)
+            boards["game"] = {"channel_id": game_channel.id, "message_id": msg.id}
+            reply_text += f"- Game Board placed in {game_channel.mention}\n"
+
         config.save_events(events_data)
-        await update_event_board(self.bot, interaction.guild.id)
+        await update_boards(self.bot, interaction.guild.id)
 
-        await interaction.response.send_message(
-            f"[BAKUSHIN] Event role boards deployed in {channel.mention}! Members can react directly to get roles.",
-            ephemeral=True
-        )
+        await interaction.response.send_message(reply_text, ephemeral=True)
+
     @app_commands.command(name="setup", description="Setup reminder channels and roles")
     @app_commands.default_permissions(administrator=True)
     @app_commands.describe(channel="Reminder channel", global_role="Global reminder role", jp_role="JP reminder role")
