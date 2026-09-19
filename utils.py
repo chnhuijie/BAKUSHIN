@@ -50,7 +50,11 @@ def build_embed():
     embed.set_footer(text="Class President - BAKUSHIN with all your might!")
     return embed
 
-def parse_time_input(time_str: str) -> int:
+def parse_time_input(time_str: str):
+    # Allows blank inputs for permanent events!
+    if not time_str or time_str.strip().lower() in ["", "none", "permanent", "perm", "n/a"]:
+        return None
+
     time_str = time_str.strip().lower()
     now = datetime.datetime.now(datetime.timezone.utc)
 
@@ -106,7 +110,12 @@ def build_event_embed(guild: discord.Guild, events_data: dict) -> discord.Embed:
             role = guild.get_role(ev["role_id"])
             role_mention = role.mention if role else f"@{ev['role_name']}"
             emoji = ev.get("emoji", "🟠")
-            lines.append(f"| {emoji} - {role_mention} (Ends <t:{ev['end_time']}:R>)")
+            
+            if ev.get("end_time"):
+                lines.append(f"| {emoji} - {role_mention} (Ends <t:{ev['end_time']}:R>)")
+            else:
+                lines.append(f"| {emoji} - {role_mention} (Permanent)")
+                
         embed.add_field(name="Active Events", value="\n".join(lines), inline=False)
     else:
         embed.add_field(
@@ -148,7 +157,6 @@ def build_game_embed(guild: discord.Guild, events_data: dict) -> discord.Embed:
     return embed
 
 async def sync_reactions(bot: discord.Client, message: discord.Message, active_emojis: list):
-    """Helper function to clean up old reactions and add new ones."""
     for reaction in message.reactions:
         emoji_str = str(reaction.emoji)
         if emoji_str not in active_emojis and reaction.me:
@@ -185,7 +193,6 @@ async def update_boards(bot: discord.Client, guild_id: int):
 
     guild_id_str = str(guild_id)
 
-    # --- UPDATE EVENT BOARD ---
     event_board = guild_boards.get("event")
     if event_board:
         channel = bot.get_channel(event_board["channel_id"])
@@ -209,7 +216,6 @@ async def update_boards(bot: discord.Client, guild_id: int):
             except Exception as e:
                 print(f"Failed to update Event board: {e}")
 
-    # --- UPDATE GAME BOARD ---
     game_board = guild_boards.get("game")
     if game_board:
         channel = bot.get_channel(game_board["channel_id"])
