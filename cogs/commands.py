@@ -16,9 +16,25 @@ from utils import (
 )
 from quotes import get_quote
 
+# --- SECURITY HELPER ---
+def is_safe_role(role: discord.Role, default_role: discord.Role) -> bool:
+    # 1. Exact match with @everyone is completely safe
+    if role.permissions.value == default_role.permissions.value:
+        return True
+    
+    # 2. Otherwise, check for dangerous server-altering permissions
+    p = role.permissions
+    if p.administrator or p.manage_guild or p.manage_roles or p.manage_channels or \
+       p.manage_messages or p.manage_webhooks or p.manage_events or \
+       p.kick_members or p.ban_members or p.moderate_members or \
+       p.view_audit_log or p.mention_everyone:
+        return False
+        
+    return True
+
 
 # ==========================================
-# 1. EVENT MODALS (TEMPORARY)
+# 1. EVENT MODALS (TEMPORARY & PERMANENT)
 # ==========================================
 class CreateEventModal(discord.ui.Modal, title="Create New Event"):
     def __init__(self, bot: commands.Bot):
@@ -29,7 +45,9 @@ class CreateEventModal(discord.ui.Modal, title="Create New Event"):
     role_name = discord.ui.TextInput(label="Role Name", placeholder="e.g., Sprint Contender", required=True)
     emoji_input = discord.ui.TextInput(label="Reaction Emoji (Optional)", placeholder="e.g., standard emoji or server emoji. Blank = auto", required=False)
     role_color = discord.ui.TextInput(label="Role Hex Color", placeholder="FF77AA", default="FF77AA", required=False)
-    end_time_input = discord.ui.TextInput(label="Event Duration or End Time (UTC)", placeholder="e.g., 2h, 1d, or 2026-10-31 18:00", required=True)
+    
+    # Changed required=False to support permanent events directly from the UI
+    end_time_input = discord.ui.TextInput(label="End Time (UTC) or Duration", placeholder="e.g., 2h, 1d (Blank = Permanent)", required=False)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
@@ -69,12 +87,14 @@ class CreateEventModal(discord.ui.Modal, title="Create New Event"):
         }
         config.save_events(events_data)
         
+        time_msg = f"<t:{end_ts}:F> (<t:{end_ts}:R>)" if end_ts else "Permanent Event (No Expiration)"
+        
         await interaction.response.send_message(
             f"[BAKUSHIN] Event created!\n"
             f"- Event: **{self.event_name.value}**\n"
             f"- Role: {new_role.mention}\n"
             f"- Reaction: {chosen_emoji}\n"
-            f"- Ends: <t:{end_ts}:F> (<t:{end_ts}:R>)",
+            f"- Ends: {time_msg}",
             ephemeral=True
         )
         await update_boards(self.bot, interaction.guild.id)
@@ -93,8 +113,12 @@ class EditEventModal(discord.ui.Modal):
         self.emoji_input = discord.ui.TextInput(label="Reaction Emoji", default=current_data.get("emoji", ""), required=False)
         self.add_item(self.emoji_input)
 
-        dt = datetime.datetime.fromtimestamp(current_data.get("end_time", 0), tz=datetime.timezone.utc)
-        self.end_time_input = discord.ui.TextInput(label="End Time (UTC) or Duration", default=dt.strftime("%Y-%m-%d %H:%M"), required=True)
+        dt_str = ""
+        if current_data.get("end_time"):
+            dt = datetime.datetime.fromtimestamp(current_data.get("end_time"), tz=datetime.timezone.utc)
+            dt_str = dt.strftime("%Y-%m-%d %H:%M")
+
+        self.end_time_input = discord.ui.TextInput(label="End Time (UTC) or Duration", default=dt_str, placeholder="Blank = Permanent", required=False)
         self.add_item(self.end_time_input)
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -304,7 +328,12 @@ class EventEditSelect(discord.ui.Select):
         self.bot = bot
         options = []
         for ev_id, ev in guild_events.items():
-            options.append(discord.SelectOption(label=ev["name"][:100], value=ev_id))
+            if ev.get("end_time"):
+                dt_str = datetime.datetime.fromtimestamp(ev["end_time"], tz=datetime.timezone.utc).strftime('%Y-%m-%d %H:%M')
+                desc = f"Ends: {dt_str} UTC"[:100]
+            else:
+                desc = "Permanent Event"
+            options.append(discord.SelectOption(label=ev["name"][:100], value=ev_id, description=desc))
         super().__init__(placeholder="Select an active event to edit", options=options[:25])
 
     async def callback(self, interaction: discord.Interaction):
@@ -370,7 +399,7 @@ class EventHubView(discord.ui.View):
         guild_id = str(self.guild.id)
         guild_events = {k: v for k, v in events_data.get("events", {}).items() if str(v.get("guild_id")) == guild_id}
         if not guild_events:
-            await interaction.response.send_message("There are no active temporary events to edit.", ephemeral=True)
+            await interaction.response.send_message("There are no active events to edit.", ephemeral=True)
             return
         await interaction.response.send_message("Select the event you wish to edit:", view=EventEditSelectView(self.bot, guild_events), ephemeral=True)
 
@@ -394,7 +423,7 @@ class EventHubView(discord.ui.View):
         guild_id = str(self.guild.id)
         events = [e for e in events_data.get("events", {}).values() if str(e.get("guild_id")) == guild_id]
         if not events:
-            await interaction.response.send_message("There are no active temporary event roles to assign.", ephemeral=True)
+            await interaction.response.send_message("There are no active events to assign.", ephemeral=True)
             return
         target_role = self.guild.get_role(events[0]["role_id"])
         if not target_role:
@@ -523,7 +552,7 @@ class BakushinCommands(commands.Cog):
                 try:
                     await member.add_roles(role, reason="Role board self-assign reaction")
                 except discord.Forbidden:
-                    print(f"Forbidden: Cannot assign role {role_id} to {member.id}")
+                    pass
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
@@ -563,22 +592,25 @@ class BakushinCommands(commands.Cog):
                 try:
                     await member.remove_roles(role, reason="Role board self-remove reaction")
                 except discord.Forbidden:
-                    print(f"Forbidden: Cannot remove role {role_id} from {member.id}")
+                    pass
 
     # --- EXISTING ROLES SLASH COMMANDS ---
-    @app_commands.command(name="link-event-role", description="Link an EXISTING server role to the temporary events board")
+    @app_commands.command(name="link-event-role", description="Link an EXISTING server role to the events board")
     @app_commands.default_permissions(manage_roles=True)
-    @app_commands.describe(role="The existing server role", event_name="Name of the event", end_time="UTC time or duration (e.g., 2h)", emoji="Optional reaction emoji")
-    async def link_event_role(self, interaction: discord.Interaction, role: discord.Role, event_name: str, end_time: str, emoji: str = None):
+    @app_commands.describe(role="The existing server role", event_name="Name of the event", end_time="Optional end time. Blank = Permanent", emoji="Optional reaction emoji")
+    async def link_event_role(self, interaction: discord.Interaction, role: discord.Role, event_name: str, end_time: str = None, emoji: str = None):
         await interaction.response.defer(ephemeral=True)
-        try: end_ts = parse_time_input(end_time)
+        
+        if not is_safe_role(role, interaction.guild.default_role):
+            await interaction.followup.send("[Error] Cannot link a role with administrative or server-altering permissions! Please select a basic user role.", ephemeral=True)
+            return
+
+        try: end_ts = parse_time_input(end_time) if end_time else None
         except ValueError as err:
             await interaction.followup.send(f"[Error] {err}", ephemeral=True)
             return
 
         events_data = config.load_events()
-        
-        # PREVENT DUPLICATES
         for ev in events_data.get("events", {}).values():
             if str(ev.get("guild_id")) == str(interaction.guild.id) and ev.get("role_id") == role.id:
                 await interaction.followup.send("[Error] That role is already linked to the event board! Use `/event` to edit it.", ephemeral=True)
@@ -591,22 +623,27 @@ class BakushinCommands(commands.Cog):
             "guild_id": interaction.guild.id, "end_time": end_ts, "emoji": chosen_emoji
         }
         config.save_events(events_data)
+        
+        time_msg = f"<t:{end_ts}:F>" if end_ts else "Permanent"
+        
         await interaction.followup.send(
             f"[BAKUSHIN] Existing role successfully linked to an event!\n"
-            f"- Event: **{event_name}**\n- Role: {role.mention}\n- Reaction: {chosen_emoji}\n- Ends: <t:{end_ts}:F>",
+            f"- Event: **{event_name}**\n- Role: {role.mention}\n- Reaction: {chosen_emoji}\n- Ends: {time_msg}",
             ephemeral=True
         )
         await update_boards(self.bot, interaction.guild.id)
-
 
     @app_commands.command(name="link-game-role", description="Link an EXISTING server role to the permanent gaming board")
     @app_commands.default_permissions(manage_roles=True)
     @app_commands.describe(role="The existing server role", description="Short description of the game", emoji="Optional reaction emoji")
     async def link_game_role(self, interaction: discord.Interaction, role: discord.Role, description: str = None, emoji: str = None):
         await interaction.response.defer(ephemeral=True)
-        events_data = config.load_events()
         
-        # PREVENT DUPLICATES
+        if not is_safe_role(role, interaction.guild.default_role):
+            await interaction.followup.send("[Error] Cannot link a role with administrative or server-altering permissions! Please select a basic user role.", ephemeral=True)
+            return
+
+        events_data = config.load_events()
         for pr in events_data.get("permanent_roles", {}).values():
             if str(pr.get("guild_id")) == str(interaction.guild.id) and pr.get("role_id") == role.id:
                 await interaction.followup.send("[Error] That role is already linked to the game board! Use `/event` to edit it.", ephemeral=True)
@@ -648,7 +685,8 @@ class BakushinCommands(commands.Cog):
             for ev_id, ev in guild_events.items():
                 role = interaction.guild.get_role(ev["role_id"])
                 role_str = role.mention if role else f"@{ev['role_name']}"
-                lines.append(f"{ev.get('emoji', '🟠')} **{ev['name']}** ({role_str}) - Ends <t:{ev['end_time']}:R>")
+                ends_str = f"Ends <t:{ev['end_time']}:R>" if ev.get("end_time") else "Permanent"
+                lines.append(f"{ev.get('emoji', '🟠')} **{ev['name']}** ({role_str}) - {ends_str}")
             embed.add_field(name="Active Events", value="\n".join(lines), inline=False)
 
         if not guild_game_roles:
