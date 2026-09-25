@@ -16,13 +16,11 @@ from utils import (
 )
 from quotes import get_quote
 
-# --- SECURITY HELPER ---
+# --- SECURITY HELPERS ---
 def is_safe_role(role: discord.Role, default_role: discord.Role) -> bool:
-    # 1. Exact match with @everyone is completely safe
     if role.permissions.value == default_role.permissions.value:
         return True
     
-    # 2. Otherwise, check for dangerous server-altering permissions
     p = role.permissions
     if p.administrator or p.manage_guild or p.manage_roles or p.manage_channels or \
        p.manage_messages or p.manage_webhooks or p.manage_events or \
@@ -31,6 +29,14 @@ def is_safe_role(role: discord.Role, default_role: discord.Role) -> bool:
         return False
         
     return True
+
+def validate_emoji_input(emoji_str: str):
+    """Prevents users from typing text shortcodes like :microphone: instead of 🎤"""
+    if not emoji_str:
+        return
+    val = emoji_str.strip()
+    if val.startswith(":") and val.endswith(":") and not val.startswith("<"):
+        raise ValueError("Please paste the actual visual emoji (e.g. 🎤), not the text shortcode (e.g. :microphone:).")
 
 
 # ==========================================
@@ -43,14 +49,13 @@ class CreateEventModal(discord.ui.Modal, title="Create New Event"):
 
     event_name = discord.ui.TextInput(label="Event Name", placeholder="e.g., Summer Sprint Tournament", required=True)
     role_name = discord.ui.TextInput(label="Role Name", placeholder="e.g., Sprint Contender", required=True)
-    emoji_input = discord.ui.TextInput(label="Reaction Emoji (Optional)", placeholder="e.g., standard emoji or server emoji. Blank = auto", required=False)
+    emoji_input = discord.ui.TextInput(label="Reaction Emoji (Optional)", placeholder="e.g., paste 🎤. Blank = auto", required=False)
     role_color = discord.ui.TextInput(label="Role Hex Color", placeholder="FF77AA", default="FF77AA", required=False)
-    
-    # Changed required=False to support permanent events directly from the UI
     end_time_input = discord.ui.TextInput(label="End Time (UTC) or Duration", placeholder="e.g., 2h, 1d (Blank = Permanent)", required=False)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
+            validate_emoji_input(self.emoji_input.value)
             end_ts = parse_time_input(self.end_time_input.value)
         except ValueError as err:
             await interaction.response.send_message(f"[Error] {err}", ephemeral=True)
@@ -123,6 +128,7 @@ class EditEventModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
+            validate_emoji_input(self.emoji_input.value)
             new_end_ts = parse_time_input(self.end_time_input.value)
         except ValueError as err:
             await interaction.response.send_message(f"[Error] {err}", ephemeral=True)
@@ -162,11 +168,17 @@ class CreatePermanentRoleModal(discord.ui.Modal, title="Create Permanent Game Ro
         self.bot = bot
 
     role_name = discord.ui.TextInput(label="Role Name", placeholder="e.g., Maple Bossing", required=True)
-    emoji_input = discord.ui.TextInput(label="Reaction Emoji (Optional)", placeholder="Blank = auto", required=False)
+    emoji_input = discord.ui.TextInput(label="Reaction Emoji (Optional)", placeholder="e.g., paste 🎮. Blank = auto", required=False)
     role_color = discord.ui.TextInput(label="Role Hex Color", placeholder="FF77AA", default="FF77AA", required=False)
     description = discord.ui.TextInput(label="Role Description", placeholder="e.g., Ping to coordinate multiplayer lobbies", required=False)
 
     async def on_submit(self, interaction: discord.Interaction):
+        try:
+            validate_emoji_input(self.emoji_input.value)
+        except ValueError as err:
+            await interaction.response.send_message(f"[Error] {err}", ephemeral=True)
+            return
+
         color_str = self.role_color.value.replace("#", "") if self.role_color.value else "FF77AA"
         try:
             color_val = int(color_str, 16)
@@ -220,6 +232,12 @@ class EditGameRoleModal(discord.ui.Modal):
         self.add_item(self.description)
 
     async def on_submit(self, interaction: discord.Interaction):
+        try:
+            validate_emoji_input(self.emoji_input.value)
+        except ValueError as err:
+            await interaction.response.send_message(f"[Error] {err}", ephemeral=True)
+            return
+
         events_data = config.load_events()
         if self.perm_id not in events_data.get("permanent_roles", {}):
             await interaction.response.send_message("[Error] Game role not found.", ephemeral=True)
@@ -261,6 +279,39 @@ class AssignUserSelectView(discord.ui.View):
                 added.append(member.display_name)
         names = ", ".join(added) if added else "None"
         await interaction.response.send_message(f"Assigned {self.role.mention} to: {names}", ephemeral=True)
+
+class AssignRoleSelect(discord.ui.Select):
+    def __init__(self, guild_events: dict, guild_game_roles: dict):
+        options = []
+        for ev_id, ev in guild_events.items():
+            options.append(discord.SelectOption(
+                label=f"Event: {ev['name']}"[:100], 
+                value=str(ev["role_id"])
+            ))
+        for pr_id, pr in guild_game_roles.items():
+            options.append(discord.SelectOption(
+                label=f"Game: {pr['name']}"[:100], 
+                value=str(pr["role_id"])
+            ))
+        super().__init__(placeholder="Select the role you want to assign", options=options[:25])
+
+    async def callback(self, interaction: discord.Interaction):
+        role_id = int(self.values[0])
+        target_role = interaction.guild.get_role(role_id)
+        if not target_role:
+            await interaction.response.send_message("Role not found on server.", ephemeral=True)
+            return
+        
+        await interaction.response.send_message(
+            f"Select members to assign to {target_role.mention}:",
+            view=AssignUserSelectView(target_role),
+            ephemeral=True
+        )
+
+class AssignRoleSelectView(discord.ui.View):
+    def __init__(self, guild_events: dict, guild_game_roles: dict):
+        super().__init__(timeout=120)
+        self.add_item(AssignRoleSelect(guild_events, guild_game_roles))
 
 class EventManageSelect(discord.ui.Select):
     def __init__(self, guild_events: dict, row: int = 0):
@@ -421,17 +472,16 @@ class EventHubView(discord.ui.View):
     async def assign_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         events_data = config.load_events()
         guild_id = str(self.guild.id)
-        events = [e for e in events_data.get("events", {}).values() if str(e.get("guild_id")) == guild_id]
-        if not events:
-            await interaction.response.send_message("There are no active events to assign.", ephemeral=True)
+        guild_events = {k: v for k, v in events_data.get("events", {}).items() if str(v.get("guild_id")) == guild_id}
+        guild_game_roles = {k: v for k, v in events_data.get("permanent_roles", {}).items() if str(v.get("guild_id")) == guild_id}
+        
+        if not guild_events and not guild_game_roles:
+            await interaction.response.send_message("There are no active roles to assign.", ephemeral=True)
             return
-        target_role = self.guild.get_role(events[0]["role_id"])
-        if not target_role:
-            await interaction.response.send_message("Role not found on server.", ephemeral=True)
-            return
+            
         await interaction.response.send_message(
-            f"Select members to assign to **{events[0]['name']}** ({target_role.mention}):",
-            view=AssignUserSelectView(target_role),
+            "Select which role you want to assign to members:",
+            view=AssignRoleSelectView(guild_events, guild_game_roles),
             ephemeral=True
         )
 
@@ -605,7 +655,9 @@ class BakushinCommands(commands.Cog):
             await interaction.followup.send("[Error] Cannot link a role with administrative or server-altering permissions! Please select a basic user role.", ephemeral=True)
             return
 
-        try: end_ts = parse_time_input(end_time) if end_time else None
+        try:
+            validate_emoji_input(emoji)
+            end_ts = parse_time_input(end_time) if end_time else None
         except ValueError as err:
             await interaction.followup.send(f"[Error] {err}", ephemeral=True)
             return
@@ -641,6 +693,12 @@ class BakushinCommands(commands.Cog):
         
         if not is_safe_role(role, interaction.guild.default_role):
             await interaction.followup.send("[Error] Cannot link a role with administrative or server-altering permissions! Please select a basic user role.", ephemeral=True)
+            return
+
+        try:
+            validate_emoji_input(emoji)
+        except ValueError as err:
+            await interaction.followup.send(f"[Error] {err}", ephemeral=True)
             return
 
         events_data = config.load_events()
